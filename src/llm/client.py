@@ -5,23 +5,43 @@ GPT-4o/Claude for complex reasoning) with transparent fallback to deterministic
 mock responses for offline testing, demos, and CI.
 """
 
+import os
 import json
 import logging
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type, TypeVar
 from pydantic import BaseModel
 
 from src.config import settings
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T", bound=BaseModel)
+
 
 class LLMClient:
     """LiteLLM wrapper with fallback and mock test modes."""
 
     def __init__(self):
+        # Sync API keys from settings into environment variables for LiteLLM
+        if settings.GEMINI_API_KEY:
+            os.environ["GEMINI_API_KEY"] = settings.GEMINI_API_KEY
+        if settings.OPENAI_API_KEY:
+            os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
+        if settings.ANTHROPIC_API_KEY:
+            os.environ["ANTHROPIC_API_KEY"] = settings.ANTHROPIC_API_KEY
+
+        # If mock mode is explicitly true, or no API keys exist, run in mock mode
         self.mock_mode = settings.MOCK_LLM_MODE or not any(
             [settings.OPENAI_API_KEY, settings.ANTHROPIC_API_KEY, settings.GEMINI_API_KEY]
         )
+        self._instructor_client = None
+
+    def _get_instructor(self):
+        if self._instructor_client is None:
+            import instructor
+            import litellm
+            self._instructor_client = instructor.from_litellm(litellm.acompletion)
+        return self._instructor_client
 
     async def complete(
         self,
@@ -41,6 +61,7 @@ class LLMClient:
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    api_key=settings.GEMINI_API_KEY if "gemini" in selected_model else None,
                 )
                 return response.choices[0].message.content or ""
             except Exception as e:
@@ -51,6 +72,32 @@ class LLMClient:
             (m["content"] for m in reversed(messages) if m["role"] == "user"), ""
         )
         return self._generate_mock_completion(last_user_msg)
+
+    async def complete_structured(
+        self,
+        response_model: Type[T],
+        messages: List[Dict[str, str]],
+        model: Optional[str] = None,
+        temperature: float = 0.0,
+    ) -> Optional[T]:
+        """Structured completion using Instructor + LiteLLM."""
+        if self.mock_mode:
+            return None
+
+        selected_model = model or settings.FAST_MODEL
+        try:
+            client = self._get_instructor()
+            result = await client.chat.completions.create(
+                model=selected_model,
+                response_model=response_model,
+                messages=messages,
+                temperature=temperature,
+                api_key=settings.GEMINI_API_KEY if "gemini" in selected_model else None,
+            )
+            return result
+        except Exception as e:
+            logger.warning(f"Structured extraction call to {selected_model} failed: {e}")
+            return None
 
     def _generate_mock_completion(self, prompt: str) -> str:
         prompt_lower = prompt.lower()

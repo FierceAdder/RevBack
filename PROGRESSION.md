@@ -174,6 +174,65 @@ This document maintains a continuous, detailed log of all architecture decisions
 > **Judge Question:** *"Does autonomous AI recovery actually generate more money than standard automated email reminders?"*
 > **Answer:** *"In our head-to-head empirical simulation on identical B2B receivables, RevBack achieved an 18 percentage point uplift in recovery rate and reduced DSO by 11 days. Most importantly, our Cost-per-Recovery engine proves that every ₹1 spent on LLM token costs recovers over ₹150 in cash—proving AI recovery is not a cost center, but an immediate profit engine."*
 
+## Phase 6: FastAPI Backend, Webhooks & REST API
+**Status:** ✅ Completed & Verified
+
+### Objectives & Deliverables
+1. **Razorpay Webhook Signature Validator (`src/razorpay/webhook_validator.py`)**:
+   - Cryptographic HMAC-SHA256 signature verification comparing `X-Razorpay-Signature` against webhook secret with constant-time equality check.
+   - Comprehensive event parser extracting `payment_link.paid`, `invoice.paid`, and `payment.captured` financial records.
+2. **Razorpay Client Service (`src/razorpay/client.py`)**:
+   - Official Razorpay SDK integration with automatic mock fallback for zero-network testing and offline demos.
+3. **Razorpay Webhook Endpoint (`src/api/webhooks.py`)**:
+   - Authenticated `POST /api/v1/webhooks/razorpay` endpoint.
+   - Financial state machine reconciliation:
+     - Automatically settles invoices to `PAID` and stage `RECOVERED` upon full payment link redemption.
+     - Transitions associated active `Promise` commitments to `KEPT` bitemporally (`valid_at` & `recorded_at`).
+     - Marks structured payment plan installments `PAID`.
+     - Updates customer lifetime statistics (total recovered paise, historical recovery rate).
+     - Writes tamper-evident `AuditLog` entry (Actor: `RAZORPAY_WEBHOOK`).
+4. **FastAPI Application Core (`src/main.py`)**:
+   - Asynchronous `lifespan` manager initializing SQLAlchemy DB schemas on startup.
+   - CORS middleware enabled for frontend dev servers (`http://localhost:3000`).
+   - OpenAPI/Swagger documentation at `/docs` and system health check at `/health`.
+5. **REST API Endpoints (`src/api/routes/`)**:
+   - **Invoices (`src/api/routes/invoices.py`)**:
+     - `GET /api/v1/invoices`: Filtering by stage, status, relationship tier, risk.
+     - `POST /api/v1/invoices`: Ingesting new receivables.
+     - `GET /api/v1/invoices/{id}`: Deep-dive view including bitemporal promises, communications, audit logs, and payment plans.
+     - `POST /api/v1/invoices/{id}/process`: Triggers LangGraph autonomous agent recovery cycle, returning risk score, recovery probability, generated Razorpay link, and dispatched copy.
+     - `POST /api/v1/invoices/{id}/inbound-message`: Ingests debtor replies (WhatsApp/Email/SMS), executes LLM intent/promise/dispute extraction, halts collection on disputes, tracks commitments bitemporally.
+     - `GET /api/v1/invoices/{id}/evidence-bundle`: Compiles tamper-evident legal evidentiary package with certifying statement.
+   - **Human Approvals (`src/api/routes/approvals.py`)**:
+     - `GET /api/v1/approvals`: Approval queue for low-confidence decisions and statutory legal notices.
+     - `POST /api/v1/approvals/{id}/resolve`: Supervisor resolution (APPROVE, REJECT, MODIFY) resuming or halting the agent.
+   - **Metrics & KPIs (`src/api/routes/metrics.py`)**:
+     - `GET /api/v1/metrics/summary`: Executive financial overview (outstanding paise/INR, recovered paise/INR, recovery rate %, active dispute count, pending approvals, estimated ROI multiplier).
+   - **Simulation & Seeding (`src/api/routes/simulation.py`)**:
+     - `POST /api/v1/simulation/seed`: Ingests realistic synthetic B2B invoices across all 5 debtor archetypes for instant interactive dashboard exploration.
+     - `POST /api/v1/simulation/run`: Batch empirical simulation comparing agent vs static ERP dunning baseline.
+
+### Verification Gate
+- Automated tests in `tests/test_webhooks.py`:
+  - `test_signature_validator_unit`: PASSED
+  - `test_webhook_rejects_missing_signature`: PASSED
+  - `test_webhook_rejects_tampered_signature`: PASSED
+  - `test_webhook_payment_link_paid_reconciles_invoice`: PASSED
+- Automated tests in `tests/test_api.py`:
+  - `test_root_and_health_endpoints`: PASSED
+  - `test_seed_database_and_list_invoices`: PASSED
+  - `test_invoice_detail_and_evidence_bundle`: PASSED
+  - `test_process_invoice_agent_cycle`: PASSED
+  - `test_inbound_message_dispute_and_promise`: PASSED
+  - `test_human_approval_resolution`: PASSED
+  - `test_dashboard_metrics_summary`: PASSED
+  - `test_simulation_run_batch_benchmark`: PASSED
+- **Combined Test Suite**: 49/49 tests PASSED in 40.66s across all 6 phases (100% success rate).
+
+### Demo Story Hook & Judge Defense
+> **Judge Question:** *"How do you close the loop when a customer actually pays?"*
+> **Answer:** *"The moment a customer completes payment through our generated Razorpay payment link, Razorpay fires a cryptographically signed webhook to `POST /api/v1/webhooks/razorpay`. RevBack verifies the HMAC-SHA256 signature, immediately halts further collection attempts, marks the invoice `RECOVERED`, updates any active promises to `KEPT` in our bitemporal ledger, and records the settlement in the immutable audit log."*
+
 ---
 
 ## 🛠️ Continuous Engineering Gotchas & Debugging Log
@@ -185,6 +244,12 @@ This document maintains a continuous, detailed log of all architecture decisions
 | **Phase 3** | Dispute Taxonomy | `test_classify_dispute_intent` failed: dispute classified as `SERVICE_QUALITY` instead of `BILLING_ERROR`. | Debtor prompt used past participle *"billed us for 50 licenses"*; keyword search checked only exact match for *"billing"*. | Stemmed matching to `"bill"`, `"ordered"`, `"quantity"`, `"rate"`, and `"amount"`. Re-verified with 100% test pass rate across all 27 tests. |
 | **Phase 3** | Live Gemini Migration | Live API call to `gemini/gemini-2.0-flash` failed with 404 (model deprecated by Google). | Upstream Google API version deprecation of `gemini-2.0-flash`. | Exposed `FAST_MODEL`, `REASONING_MODEL`, `LEGAL_MODEL` dynamically in `.env` and default to `gemini/gemini-3.1-flash-lite`. Verified live with Instructor structured extraction: 100% accuracy on ₹75,000 promise extraction. |
 | **Phase 5** | Cost-per-Recovery Test | `test_cost_tracker_roi_calculation` failed: `10000000.0 == 1000000.0`. | Constant `10_000_000_00` paise evaluated to ₹1 Crore instead of intended ₹10 Lakhs (`1_000_000_00` paise). | Corrected paise unit constant in test fixture. Re-ran test suite: 100% passed in 0.46s. |
+| **Phase 5/6 Audit** | Live Gemini Calibration | `test_extract_ambiguous_promise_low_confidence` failed with live Gemini: confidence returned `>= 0.80` on hedging phrase *"might try to pay"*. | Live Gemini model was overestimating certainty on ambiguous debtor messages, which would bypass the safety confidence gate. | Implemented post-processing hedging marker calibration guard in `src/llm/extractors.py`: caps confidence at 0.65 when uncertainty markers are present. Verified: 37/37 tests pass 100%. |
+| **Phase 6** | Seeding Archetype Key | `test_seed_database_and_list_invoices` failed with `KeyError: 'debtor_archetype'`. | Synthetic dataset generator outputs key `"archetype"`, while the seeding loop accessed `"debtor_archetype"`. | Updated `src/api/routes/simulation.py` to check `item.get("archetype", item.get("debtor_archetype", "STANDARD"))`. All 8 API tests pass 100%. |
+| **Phase 6** | Benchmark Metric Path | `test_simulation_run_batch_benchmark` failed: `'uplift_percentage_points' not in sim_data`. | Comparative uplift metrics were nested under `sim_data["comparative"]`. | Updated test assertions to check `sim_data["comparative"]["uplift_percentage_points"]` and `roi_multiple`. Verified 49/49 tests pass. |
+
+---
+
 
 ---
 

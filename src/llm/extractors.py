@@ -54,9 +54,39 @@ class DebtorExtractors:
     ) -> PromiseExtractionResult:
         """Extract promise-to-pay commitment."""
         now = reference_date or datetime.now(timezone.utc)
+
+        # 1. If live LLM mode is active, query LiteLLM with Instructor
+        if not llm_client.mock_mode:
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert financial extraction assistant for B2B receivable recovery. "
+                        f"Today's date is {now.strftime('%Y-%m-%d')}. The invoice amount is {invoice_amount_paise} paise. "
+                        "Extract payment commitments, amounts in paise (1 INR = 100 paise), and deadline dates. "
+                        "If the customer expresses uncertainty, hedging, or conditional commitment (e.g. 'might', 'try', 'hope', 'if', 'maybe'), "
+                        "set confidence < 0.75 to ensure supervisor review."
+                    ),
+                },
+                {"role": "user", "content": f"Customer Message: {text}"},
+            ]
+            live_result = await llm_client.complete_structured(
+                response_model=PromiseExtractionResult,
+                messages=messages,
+            )
+            if live_result:
+                # Post-processing calibration guard:
+                # If hedging/conditional markers are detected, enforce low confidence to route to supervisor review
+                text_lower = text.lower()
+                hedging_markers = ["maybe", "hope to", "try", "might", "subject to", "unlikely", "if our", "if we"]
+                if any(m in text_lower for m in hedging_markers) and live_result.confidence >= 0.80:
+                    live_result.confidence = 0.65
+                return live_result
+
+        # 2. Heuristic/Deterministic Mock Parser
         text_lower = text.lower()
 
-        # 1. Ambiguous / Conditional promises (must be checked first)
+        # Check ambiguous/hedged commitments first
         if any(w in text_lower for w in ["maybe", "hope to", "try", "might", "subject to", "unlikely"]):
             return PromiseExtractionResult(
                 has_promise=True,
@@ -64,12 +94,11 @@ class DebtorExtractors:
                 promise_date_iso=(now + timedelta(days=7)).isoformat(),
                 is_installment_request=False,
                 raw_quote=text.strip()[:200],
-                confidence=0.62,  # Low confidence triggers ConfidenceGate route_to_human!
+                confidence=0.62,
             )
 
-        # 2. Definite Commitments
+        # Definite commitments
         if any(kw in text_lower for kw in ["will pay", "transfer", "clearing", "send payment", "by friday", "next week", "monday", "pay"]):
-            # Detect dates
             deadline = now + timedelta(days=5)
             if "monday" in text_lower:
                 days_ahead = (0 - now.weekday()) % 7 or 7
@@ -78,14 +107,12 @@ class DebtorExtractors:
                 days_ahead = (4 - now.weekday()) % 7 or 7
                 deadline = now + timedelta(days=days_ahead)
 
-            # Detect amount
             amount = invoice_amount_paise
             numbers = re.findall(r"₹?\s*(\d[\d,]*)", text)
             if numbers:
                 clean_num = numbers[0].replace(",", "")
                 try:
                     num_val = int(clean_num)
-                    # If user wrote in rupees, convert to paise
                     if num_val < 10_000_000:
                         amount = num_val * 100
                 except ValueError:
@@ -110,8 +137,27 @@ class DebtorExtractors:
     @classmethod
     async def classify_intent(cls, text: str) -> IntentClassificationResult:
         """Classify customer message intent."""
-        text_lower = text.lower()
+        # 1. Live LLM query
+        if not llm_client.mock_mode:
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "Classify debtor intent regarding an overdue invoice. "
+                        "Choose from: PROMISE_TO_PAY, DISPUTE, REQUEST_EXTENSION, ALREADY_PAID, REFUSAL, GENERAL_INQUIRY."
+                    ),
+                },
+                {"role": "user", "content": f"Customer Message: {text}"},
+            ]
+            live_result = await llm_client.complete_structured(
+                response_model=IntentClassificationResult,
+                messages=messages,
+            )
+            if live_result:
+                return live_result
 
+        # 2. Heuristic Parser
+        text_lower = text.lower()
         if any(k in text_lower for k in ["dispute", "incorrect", "wrong invoice", "did not receive", "defective", "overcharged", "billed"]):
             return IntentClassificationResult(
                 intent="DISPUTE",
@@ -158,6 +204,26 @@ class DebtorExtractors:
     @classmethod
     async def extract_dispute(cls, text: str) -> DisputeExtractionResult:
         """Extract root cause of debtor dispute."""
+        # 1. Live LLM query
+        if not llm_client.mock_mode:
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "Analyze whether customer message contains an invoice dispute. "
+                        "Categories: BILLING_ERROR, SERVICE_QUALITY, MISSING_DELIVERABLE, CONTRACT_TERMS, UNAUTHORIZED."
+                    ),
+                },
+                {"role": "user", "content": f"Customer Message: {text}"},
+            ]
+            live_result = await llm_client.complete_structured(
+                response_model=DisputeExtractionResult,
+                messages=messages,
+            )
+            if live_result:
+                return live_result
+
+        # 2. Heuristic Parser
         text_lower = text.lower()
         if not any(k in text_lower for k in ["dispute", "wrong", "defective", "not received", "overcharge", "billed"]):
             return DisputeExtractionResult(is_disputed=False, confidence=0.98)

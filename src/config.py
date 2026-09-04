@@ -35,10 +35,10 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
     
-    # Model tiers
-    FAST_MODEL: str = "gemini/gemini-2.0-flash"
-    REASONING_MODEL: str = "gpt-4o"
-    LEGAL_MODEL: str = "claude-3-5-sonnet-20241022"
+    # Model tiers (Configurable via .env)
+    FAST_MODEL: str = Field(default="gemini/gemini-3.1-flash-lite", description="Model for extraction & classification")
+    REASONING_MODEL: str = Field(default="gemini/gemini-3.1-flash-lite", description="Model for agent reasoning")
+    LEGAL_MODEL: str = Field(default="gemini/gemini-3.1-flash-lite", description="Model for formal demand drafting")
 
     # Observability (Langfuse)
     LANGFUSE_PUBLIC_KEY: Optional[str] = None
