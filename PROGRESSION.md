@@ -107,6 +107,49 @@ This document maintains a continuous, detailed log of all architecture decisions
 
 ### Demo Story Hook & Judge Defense
 > **Judge Question:** *"How do you prevent the agent from damaging valuable merchant customer relationships?"*
-> **Answer:** *"Our Smart Tone Engine adapts dynamically. An Enterprise VIP account 8 days overdue receives a polite collaborative note from a 'Helpful Partner' persona highlighting an easy Razorpay payment link. However, a chronic defaulter who broke two promises receives a firm notice from Credit Control with concrete deadlines and service suspension warnings."*
+---
+
+## Phase 4: LangGraph Agent Core, Tools & Orchestration
+**Status:** ✅ Completed & Verified
+
+### Objectives & Deliverables
+1. **Agent State (`src/agent/state.py`)**:
+   - Typed `RecoveryState` tracking financial exposure, days overdue, relationship tier, risk score, recovery probability, channel, tone, promise flags, payment plan objects, and monotonic audit trails (`operator.add`).
+2. **Feature 3 — Dynamic Payment Plans (`src/agent/payment_plans.py`)**:
+   - Automated installment scheduler distributing outstanding amounts evenly with remainder adjustments into 2-6 installments across configurable frequencies (default 14 days) linked with Razorpay payment links.
+3. **Feature 4 — Multi-Channel Orchestration & Fallback Cascade (`src/agent/channels.py`)**:
+   - Validates debtor contact credentials and cascades gracefully (e.g. WhatsApp missing phone falls back to verified corporate Email; missing digital credentials falls back to formal statutory dispatch).
+4. **Agent Tools (`src/agent/tools.py`)**:
+   - `RazorpayTools`: Asynchronously generates authentic Razorpay payment links via Python SDK (with deterministic fallback format `https://rzp.io/i/...`).
+   - `EvidenceBundler`: Aggregates invoice lines, broken promise timelines, audit logs, and communications into a tamper-evident Bitemporal Legal Evidence Package.
+5. **LangGraph State Machine (`src/agent/graph.py`)**:
+   - Complete workflow graph connecting:
+     `Intake & Diagnose` → `Policy Evaluation` → `Confidence Gating` → `Human Approval Checkpoint (Interrupt)` → `Plan & Generate` → `Multi-Channel Dispatch` → `Audit & Verify`.
+   - Supports conditional exits on dispute freeze (`should_act=False`), confidence escalation rerouting, and human-in-the-loop pauses.
+
+### Verification Gate
+- Automated tests in `tests/test_agent_graph.py`:
+  - `test_standard_invoice_agent_cycle`: PASSED (verifies end-to-end state transitions, risk calculation, Razorpay link generation, and simulated dispatch).
+  - `test_payment_plan_generation_at_level_4`: PASSED (verifies 3 installments generated summing to exact invoice total).
+  - `test_confidence_gating_triggers_human_approval`: PASSED (verifies low confidence triggers `CONFIDENCE_ESCALATION` routing).
+  - `test_disputed_invoice_halts_before_dispatch`: PASSED (verifies zero messages dispatched when invoice is flagged disputed).
+  - `test_channel_dispatcher_fallback`: PASSED (verifies graceful WhatsApp to Email fallback).
+  - `test_evidence_bundle_generation`: PASSED (verifies certifying statement and broken commitment compilation).
+- **Combined Test Suite**: 33/33 tests PASSED in 0.30s.
+
+### Demo Story Hook & Judge Defense
+> **Judge Question:** *"What happens when a customer can't pay all at once, or disputes an invoice?"*
+> **Answer:** *"Instead of pushing the customer to default, RevBack switches gears. At Level 4, the agent autonomously structures a dynamic Payment Plan splitting the receivable into manageable bi-weekly installments with Razorpay links. If a dispute is detected, automated dunning instantly halts, protecting the relationship and routing the dispute context directly to human review."*
 
 ---
+
+## 🛠️ Continuous Engineering Gotchas & Debugging Log
+
+| Timestamp | Component / Phase | Symptom & Failure | Root Cause | Fix Applied & Verification |
+|---|---|---|---|---|
+| **Phase 1** | SQLAlchemy Async Driver | `pytest` failed with: `ValueError: the greenlet library is required to use this function. No module named 'greenlet'` | SQLAlchemy 2.0 async engine delegates coroutine execution to sync drivers using greenlet context switching. | Added `greenlet>=3.0.0` to `pyproject.toml` dependencies and virtual environment. All 4 model tests passed in 0.12s. |
+| **Phase 3** | Debtor Extractors | `test_extract_ambiguous_promise_low_confidence` failed: confidence returned `0.92` instead of `< 0.80`. | The phrase *"We might try to pay something next week"* triggered the definite commitment rule on *"next week"* before ambiguity keywords (*"might"*, *"try"*) were evaluated. | Enforced strict precedence: conditional/hedging markers are evaluated first, setting `confidence=0.62` to properly test and trigger the `ConfidenceGate` route-to-human flow. |
+| **Phase 3** | Dispute Taxonomy | `test_classify_dispute_intent` failed: dispute classified as `SERVICE_QUALITY` instead of `BILLING_ERROR`. | Debtor prompt used past participle *"billed us for 50 licenses"*; keyword search checked only exact match for *"billing"*. | Stemmed matching to `"bill"`, `"ordered"`, `"quantity"`, `"rate"`, and `"amount"`. Re-verified with 100% test pass rate across all 27 tests. |
+
+---
+
