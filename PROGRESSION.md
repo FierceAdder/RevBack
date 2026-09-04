@@ -235,6 +235,51 @@ This document maintains a continuous, detailed log of all architecture decisions
 
 ---
 
+## Phase 7: Frontend Fintech Web Dashboard
+**Status:** ✅ Completed & Verified
+
+### Objectives & Deliverables
+1. **Next.js 15 App Router Architecture (`frontend/`)**:
+   - Built with Next.js 15, TypeScript, Tailwind CSS, and `lucide-react`.
+   - Production multi-stage `Dockerfile` supporting local containerization and `docker-compose up`.
+2. **Fintech Design System**:
+   - Strictly adhering to "fintech-pro" dark slate aesthetic (Mercury, Stripe, RazorpayX style; zero neon).
+   - Deep obsidian background (`#0B0F17`), slate card surfaces, micro-borders, and high-contrast typography.
+3. **Core Interactive Views**:
+   - **Executive Dashboard (`frontend/src/app/page.tsx`)**:
+     - 4 financial KPI cards: Total Outstanding (₹), Cash Recovered (₹), Recovery Rate (%), and Cost-per-Recovery ROI Multiplier (154x).
+     - 6-stage interactive recovery lifecycle pipeline (Intake → Diagnose → Act → Promise Track → Escalation → Recovered).
+     - At-risk receivables priority queue with real-time "Run Agent" action buttons.
+   - **Receivables Ledger (`frontend/src/app/invoices/page.tsx`)**:
+     - Full B2B receivables data table with search, stage filters (All, Promises Active, Disputed, Critical Risk, Recovered).
+     - Risk assessment score badges, recovery probability bars, and optimal tone indicators.
+   - **Receivable Deep-Dive & Control Panel (`frontend/src/app/invoices/[id]/page.tsx`)**:
+     - Debtor profile, claim exposure, and direct Razorpay payment link button.
+     - **Bitemporal Promise Tracker**: Explicit commitments display with both `valid_at` (debtor commitment date) and `recorded_at` (ledger ingestion timestamp) alongside kept/broken badges.
+     - **Structured Payment Plan Viewer**: Bi-weekly installment schedules with Razorpay payment link integration.
+     - **Communications & Audit Thread**: Multi-channel timeline (WhatsApp, Email, SMS, Formal Legal Notice) with tone tags.
+     - **Interactive Debtor Inbound Simulator**: Live prompt box allowing judges to simulate debtor replies (definite promises, hedged promises triggering confidence gates, or billing disputes halting dunning) with immediate AI extraction and database updates.
+     - **Certified Evidence Bundle Modal**: Tamper-evident bitemporal evidence package viewer with certifying statement for legal review.
+   - **Supervisor Approval Queue (`frontend/src/app/approvals/page.tsx`)**:
+     - Review queue for low-confidence decisions and Level 6/7 formal legal notices.
+     - 1-click "Authorize & Dispatch" and "Reject / Halt Escalation" actions with supervisor note logging.
+   - **Empirical Simulation & Benchmark Runner (`frontend/src/app/simulation/page.tsx`)**:
+     - Batch simulation runner (10 to 100 invoices) comparing RevBack Autonomous Agent vs. Static Rule-Based ERP Dunning.
+     - Live differential cards: Recovery Rate Uplift (+18.4 pp), DSO Reduction (-11.2 days), Additional Cash Recovered, and Token ROI Multiplier (154.2x).
+
+### Verification Gate
+- `npm run build` in `frontend/`:
+  - `✓ Compiled successfully in 2.5s`
+  - `✓ Finished TypeScript in 1267ms`
+  - Zero TypeScript errors, zero lint warnings across all routes (`/`, `/invoices`, `/invoices/[id]`, `/approvals`, `/simulation`).
+- Backend regression suite: 49/49 tests passed in 20.22s.
+
+### Demo Story Hook & Judge Defense
+> **Judge Question:** *"Can a supervisor review and override what the agent is doing?"*
+> **Answer:** *"Yes. In RevBack, bounded autonomy means high-risk actions—like serving a formal legal notice or handling an ambiguous debtor commitment that fails our 85% confidence gate—are automatically routed to the Supervisor Review Queue. The supervisor can inspect the draft, review the bitemporal commitment history, and approve or modify the action with a single click before anything is dispatched."*
+
+---
+
 ## 🛠️ Continuous Engineering Gotchas & Debugging Log
 
 | Timestamp | Component / Phase | Symptom & Failure | Root Cause | Fix Applied & Verification |
@@ -247,6 +292,7 @@ This document maintains a continuous, detailed log of all architecture decisions
 | **Phase 5/6 Audit** | Live Gemini Calibration | `test_extract_ambiguous_promise_low_confidence` failed with live Gemini: confidence returned `>= 0.80` on hedging phrase *"might try to pay"*. | Live Gemini model was overestimating certainty on ambiguous debtor messages, which would bypass the safety confidence gate. | Implemented post-processing hedging marker calibration guard in `src/llm/extractors.py`: caps confidence at 0.65 when uncertainty markers are present. Verified: 37/37 tests pass 100%. |
 | **Phase 6** | Seeding Archetype Key | `test_seed_database_and_list_invoices` failed with `KeyError: 'debtor_archetype'`. | Synthetic dataset generator outputs key `"archetype"`, while the seeding loop accessed `"debtor_archetype"`. | Updated `src/api/routes/simulation.py` to check `item.get("archetype", item.get("debtor_archetype", "STANDARD"))`. All 8 API tests pass 100%. |
 | **Phase 6** | Benchmark Metric Path | `test_simulation_run_batch_benchmark` failed: `'uplift_percentage_points' not in sim_data`. | Comparative uplift metrics were nested under `sim_data["comparative"]`. | Updated test assertions to check `sim_data["comparative"]["uplift_percentage_points"]` and `roi_multiple`. Verified 49/49 tests pass. |
+| **Phase 7** | PostgreSQL String Truncation | `process_invoice_agent` raised `StringDataRightTruncationError: value too long for type character varying(128)`. | In SQLite length limits on `String(128)` are advisory, but PostgreSQL strictly enforces `VARCHAR(128)` on `audit_logs.action`. Agent policy decisions exceeded 128 chars. | Changed `action` column to `Text` in `src/models/db_models.py` and executed `ALTER TABLE audit_logs ALTER COLUMN action TYPE TEXT;` on PostgreSQL. Re-verified: all batch agent executions complete cleanly. |
 
 ---
 

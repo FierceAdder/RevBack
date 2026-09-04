@@ -258,7 +258,7 @@ class AuditLog(Base):
     invoice_id: Mapped[str] = mapped_column(String(36), ForeignKey("invoices.id"), nullable=False, index=True)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     actor: Mapped[str] = mapped_column(String(64), default="AGENT")
-    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    action: Mapped[str] = mapped_column(Text, nullable=False)
     previous_state: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     new_state: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     reasoning: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
