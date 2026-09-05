@@ -17,15 +17,23 @@ import {
   CheckCircle2,
   RefreshCw,
   Zap,
+  Activity,
+  ShieldCheck,
+  Cpu,
 } from 'lucide-react';
 import { fetchMetrics, fetchInvoices, processInvoiceAgent } from '@/lib/api';
 import { DashboardMetrics, Invoice } from '@/lib/types';
+import NumberTicker from '@/components/NumberTicker';
+import RecoveryChart from '@/components/RecoveryChart';
+import PipelineVisualizer from '@/components/PipelineVisualizer';
+import LiveAgentStream from '@/components/LiveAgentStream';
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [selectedStage, setSelectedStage] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
@@ -57,247 +65,361 @@ export default function DashboardPage() {
     }
   };
 
+  const displayedInvoices = selectedStage
+    ? invoices.filter((inv) => inv.current_stage === selectedStage)
+    : invoices;
+
   return (
-    <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8 space-y-6">
-      {/* Header & Tagline */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            Revenue Recovery Control Center
-          </h1>
-          <p className="mt-1 text-xs text-slate-400">
-            Autonomous B2B debt chaser: detect at-risk receivables, adapt tone, bitemporal promises, and Razorpay webhook reconciliation.
-          </p>
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
+      {/* 1. Hero Bento Banner */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* Left Hero Card (8 cols) */}
+        <div className="lg:col-span-8 rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0A0D14]/80 backdrop-blur-xl p-6 sm:p-8 shadow-sm dark:shadow-2xl relative overflow-hidden flex flex-col justify-between">
+          <div className="relative z-10">
+            {/* Pill Eyebrow */}
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#0066FF]/10 dark:bg-[#0066FF]/20 px-3 py-1 text-xs font-black text-[#0066FF] dark:text-[#38BDF8] border border-[#0066FF]/30 uppercase tracking-wider mb-3">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#0066FF] dark:bg-[#38BDF8] animate-pulse" />
+              Autonomous Revenue Recovery Engine
+            </div>
+
+            <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">
+              Self-Driving B2B Debt Chaser & Webhook Reconciliation
+            </h1>
+            <p className="mt-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+              Detect at-risk invoices early, adapt communication tone to debtor archetype, track promises with bitemporal precision, and verify instant settlements via signed Razorpay links.
+            </p>
+          </div>
+
+          <div className="mt-6 pt-5 border-t border-slate-100 dark:border-white/[0.08] flex flex-wrap items-center gap-3 relative z-10">
+            <Link
+              href="/simulation"
+              className="flex items-center gap-2 rounded-full bg-gradient-to-r from-[#0066FF] to-[#0099FF] px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-500/25 hover:from-blue-600 hover:to-sky-600 transition-all hover:scale-[1.02]"
+            >
+              <Zap className="h-4 w-4 fill-white" />
+              <span>Run ROI Benchmark</span>
+            </Link>
+
+            <Link
+              href="/invoices"
+              className="flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/10 bg-slate-100/80 dark:bg-white/[0.04] px-4 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-white/[0.08] transition-all"
+            >
+              <Receipt className="h-3.5 w-3.5" />
+              <span>View Ledger ({invoices.length})</span>
+            </Link>
+
+            <button
+              onClick={loadData}
+              className="flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/10 bg-slate-100/80 dark:bg-white/[0.04] px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/[0.08] transition-all"
+            >
+              <RefreshCw className="h-3.5 w-3.5 text-slate-400" />
+              <span>Sync</span>
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={loadData}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 transition-colors"
-          >
-            <RefreshCw className="h-3.5 w-3.5 text-slate-400" />
-            <span>Refresh</span>
-          </button>
-          <Link
-            href="/simulation"
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-500 transition-colors"
-          >
-            <Zap className="h-3.5 w-3.5" />
-            <span>Run ROI Benchmark</span>
-          </Link>
+        {/* Right Status Bento Card (4 cols) */}
+        <div className="lg:col-span-4 rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0A0D14]/80 backdrop-blur-xl p-6 shadow-sm dark:shadow-2xl flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/[0.08] pb-3">
+              <div className="flex items-center gap-2">
+                <Cpu className="h-4 w-4 text-[#0066FF] dark:text-[#38BDF8]" />
+                <span className="text-xs font-black tracking-wider uppercase text-slate-900 dark:text-white">
+                  Engine Telemetry
+                </span>
+              </div>
+              <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold border border-emerald-500/20">
+                ACTIVE
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-3 text-xs">
+              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-black/40 border border-slate-200/60 dark:border-white/[0.04]">
+                <span className="text-slate-500 dark:text-slate-400">Agent Framework</span>
+                <span className="font-bold text-slate-900 dark:text-white">LangGraph StateLoop</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-black/40 border border-slate-200/60 dark:border-white/[0.04]">
+                <span className="text-slate-500 dark:text-slate-400">Webhook Gating</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">HMAC-SHA256</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-black/40 border border-slate-200/60 dark:border-white/[0.04]">
+                <span className="text-slate-500 dark:text-slate-400">Active Commitments</span>
+                <span className="font-bold text-amber-500">{metrics?.active_promises_count || 6} bitemporal</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-black/40 border border-slate-200/60 dark:border-white/[0.04]">
+                <span className="text-slate-500 dark:text-slate-400">Supervisor Queue</span>
+                <span className="font-bold text-rose-500">{metrics?.pending_approvals_count || 2} awaiting</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 text-[11px] text-slate-400 dark:text-slate-500 text-center font-mono">
+            Zero-hallucination deterministic bounds
+          </div>
         </div>
       </div>
 
-      {/* 4 Financial KPI Cards */}
+      {/* 2. Financial KPI Bento Block (4 Cards) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Total Outstanding */}
-        <div className="rounded-xl border border-slate-800 bg-[#111622] p-4 shadow-sm relative overflow-hidden">
+        <div className="rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0A0D14]/80 backdrop-blur-xl p-5 shadow-sm dark:shadow-2xl transition-all hover:border-amber-500/40 group">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Total Outstanding</span>
-            <div className="rounded-md bg-amber-500/10 p-2 text-amber-400 border border-amber-500/20">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Total Outstanding
+            </span>
+            <div className="rounded-2xl bg-amber-500/10 p-2.5 text-amber-500 border border-amber-500/20 group-hover:scale-105 transition-transform">
               <Clock className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold text-white tracking-tight">
-              ₹{(metrics?.total_outstanding_inr || 3260000).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+              <NumberTicker
+                value={metrics?.total_outstanding_inr || 8990000}
+                prefix="₹"
+                isCurrency={true}
+              />
             </div>
-            <p className="mt-1 text-[11px] text-slate-400 flex items-center gap-1">
-              <span className="text-amber-400 font-semibold">{metrics?.active_recovering_count || 14}</span> active receivables at risk
-            </p>
+            <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>Receivables at Risk</span>
+              <span className="font-bold text-amber-600 dark:text-amber-400">
+                {metrics?.active_recovering_count || 17} active
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Capital Recovered */}
-        <div className="rounded-xl border border-slate-800 bg-[#111622] p-4 shadow-sm relative overflow-hidden">
+        <div className="rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0A0D14]/80 backdrop-blur-xl p-5 shadow-sm dark:shadow-2xl transition-all hover:border-emerald-500/40 group">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Cash Recovered</span>
-            <div className="rounded-md bg-emerald-500/10 p-2 text-emerald-400 border border-emerald-500/20">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Cash Recovered
+            </span>
+            <div className="rounded-2xl bg-emerald-500/10 p-2.5 text-emerald-500 border border-emerald-500/20 group-hover:scale-105 transition-transform">
               <CheckCircle2 className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold text-emerald-400 tracking-tight">
-              ₹{(metrics?.total_recovered_inr || 1740000).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+            <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+              <NumberTicker
+                value={metrics?.total_recovered_inr || 1740000}
+                prefix="₹"
+                isCurrency={true}
+              />
             </div>
-            <p className="mt-1 text-[11px] text-slate-400 flex items-center gap-1">
-              <span className="text-emerald-400 font-semibold">{metrics?.recovered_count || 8}</span> invoices settled via Razorpay
-            </p>
+            <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>Settled via Razorpay</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                {metrics?.recovered_count || 8} reconciled
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Recovery Rate % */}
-        <div className="rounded-xl border border-slate-800 bg-[#111622] p-4 shadow-sm relative overflow-hidden">
+        <div className="rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0A0D14]/80 backdrop-blur-xl p-5 shadow-sm dark:shadow-2xl transition-all hover:border-[#0066FF]/40 group">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Recovery Rate</span>
-            <div className="rounded-md bg-blue-500/10 p-2 text-blue-400 border border-blue-500/20">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Recovery Rate
+            </span>
+            <div className="rounded-2xl bg-[#0066FF]/10 p-2.5 text-[#0066FF] dark:text-[#38BDF8] border border-[#0066FF]/20 group-hover:scale-105 transition-transform">
               <TrendingUp className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold text-white tracking-tight">
-              {metrics?.recovery_rate_pct ?? 34.8}%
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+              <NumberTicker
+                value={metrics?.recovery_rate_pct || 34.8}
+                suffix="%"
+                decimals={1}
+              />
             </div>
-            <p className="mt-1 text-[11px] text-slate-400 flex items-center gap-1">
-              <span className="text-emerald-400 font-semibold">+18.4%</span> uplift vs static ERP baseline
-            </p>
+            <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>Uplift vs ERP</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                <ArrowUpRight className="h-3 w-3" />
+                +18.4%
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Token ROI Multiplier */}
-        <div className="rounded-xl border border-slate-800 bg-[#111622] p-4 shadow-sm relative overflow-hidden">
+        {/* Cost-per-Recovery ROI */}
+        <div className="rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0A0D14]/80 backdrop-blur-xl p-5 shadow-sm dark:shadow-2xl transition-all hover:border-purple-500/40 group">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-400">Cost-per-Recovery ROI</span>
-            <div className="rounded-md bg-purple-500/10 p-2 text-purple-400 border border-purple-500/20">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Cost-per-Recovery ROI
+            </span>
+            <div className="rounded-2xl bg-purple-500/10 p-2.5 text-purple-500 border border-purple-500/20 group-hover:scale-105 transition-transform">
               <Sparkles className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-bold text-purple-400 tracking-tight">
-              {metrics?.estimated_roi_multiple ?? 154.2}x
+            <div className="text-2xl sm:text-3xl font-black text-purple-600 dark:text-purple-400 tracking-tight">
+              <NumberTicker
+                value={metrics?.estimated_roi_multiple || 154.2}
+                suffix="x"
+                decimals={1}
+              />
             </div>
-            <p className="mt-1 text-[11px] text-slate-400 flex items-center gap-1">
-              Every ₹1 spent on AI recovers <span className="text-white font-semibold">₹154+</span> cash
+            <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>Token Spend Ratio</span>
+              <span className="font-bold text-purple-600 dark:text-purple-400">
+                0.65% fee
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Analytics & Streaming Feed Bento Block */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div className="lg:col-span-7">
+          <RecoveryChart />
+        </div>
+        <div className="lg:col-span-5">
+          <LiveAgentStream />
+        </div>
+      </div>
+
+      {/* 4. Lifecycle Pipeline Visualizer Bento Card */}
+      <PipelineVisualizer
+        stageBreakdown={metrics?.stage_breakdown}
+        selectedStage={selectedStage}
+        onSelectStage={setSelectedStage}
+      />
+
+      {/* 5. Priority Receivables Bento Table */}
+      <div className="rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0A0D14]/80 backdrop-blur-xl p-6 shadow-sm dark:shadow-2xl overflow-hidden transition-all hover:border-blue-500/20">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-white/[0.08] pb-4 gap-2">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white">
+                Receivables Priority Queue
+              </h2>
+              {selectedStage && (
+                <span className="rounded-full bg-[#0066FF]/10 text-[#0066FF] dark:text-[#38BDF8] px-2.5 py-0.5 text-[10px] font-extrabold border border-[#0066FF]/30">
+                  Stage: {selectedStage}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Dynamically prioritized by composite Risk Scorer (overdue severity, exposure, promise history)
             </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Recovery Pipeline Stage Breakdown */}
-      <div className="rounded-xl border border-slate-800 bg-[#111622] p-5 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-white">Autonomous Recovery Lifecycle Pipeline</h2>
-            <p className="text-xs text-slate-400">B2B receivables transitioning dynamically through policy rules</p>
-          </div>
-          <span className="text-xs text-slate-400">Total: {metrics?.total_invoices_count || 25} Receivables</span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-2">
-          {[
-            { label: '1. Intake', count: metrics?.stage_breakdown?.INTAKE || 3, color: 'border-slate-700 text-slate-300' },
-            { label: '2. Diagnose', count: metrics?.stage_breakdown?.DIAGNOSE || 4, color: 'border-blue-500/40 text-blue-400' },
-            { label: '3. Act & Dispatch', count: metrics?.stage_breakdown?.ACT || 6, color: 'border-cyan-500/40 text-cyan-400' },
-            { label: '4. Promise Track', count: metrics?.stage_breakdown?.PROMISE_TRACKING || 4, color: 'border-amber-500/40 text-amber-400' },
-            { label: '5. Escalation', count: metrics?.stage_breakdown?.ESCALATION || 2, color: 'border-rose-500/40 text-rose-400' },
-            { label: '6. Recovered', count: metrics?.stage_breakdown?.RECOVERED || 8, color: 'border-emerald-500/40 text-emerald-400' },
-          ].map((stage, idx) => (
-            <div
-              key={idx}
-              className={`rounded-lg border bg-slate-900/60 p-3 text-center ${stage.color}`}
-            >
-              <div className="text-[11px] font-medium text-slate-400">{stage.label}</div>
-              <div className="text-xl font-bold mt-1">{stage.count}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Top At-Risk Receivables Table */}
-      <div className="rounded-xl border border-slate-800 bg-[#111622] shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-          <div>
-            <h2 className="text-sm font-semibold text-white">Receivables Priority Queue</h2>
-            <p className="text-xs text-slate-400">Evaluated by Risk Scorer (overdue days, exposure, promise history)</p>
           </div>
           <Link
             href="/invoices"
-            className="flex items-center gap-1 text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+            className="flex items-center gap-1 text-xs font-bold text-[#0066FF] dark:text-[#38BDF8] hover:underline"
           >
-            <span>View All Ledger</span>
+            <span>View Full Ledger ({invoices.length})</span>
             <ChevronRight className="h-3.5 w-3.5" />
           </Link>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto mt-2">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+            <thead className="text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold border-b border-slate-100 dark:border-white/[0.06]">
               <tr>
-                <th className="px-5 py-3">Invoice & Customer</th>
-                <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3">Due Date</th>
-                <th className="px-4 py-3">Risk Band</th>
-                <th className="px-4 py-3">P(Recovery)</th>
-                <th className="px-4 py-3">Stage / Level</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="py-3 px-2">Invoice & Customer</th>
+                <th className="py-3 px-2">Claim Amount</th>
+                <th className="py-3 px-2">Due Date</th>
+                <th className="py-3 px-2">Risk Band</th>
+                <th className="py-3 px-2">P(Recovery)</th>
+                <th className="py-3 px-2">Stage</th>
+                <th className="py-3 px-2 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 text-slate-300">
-              {invoices.slice(0, 8).map((inv) => (
-                <tr key={inv.id} className="hover:bg-slate-900/40 transition-colors">
-                  {/* Customer / Invoice */}
-                  <td className="px-5 py-3.5">
-                    <Link href={`/invoices/${inv.id}`} className="hover:underline font-semibold text-white">
-                      {inv.invoice_number}
+            <tbody className="divide-y divide-slate-100 dark:divide-white/[0.04] text-slate-700 dark:text-slate-300">
+              {displayedInvoices.slice(0, 10).map((inv) => (
+                <tr
+                  key={inv.id}
+                  className="hover:bg-slate-50/70 dark:hover:bg-white/[0.02] transition-colors group"
+                >
+                  {/* Invoice # & Customer */}
+                  <td className="py-3.5 px-2">
+                    <Link
+                      href={`/invoices/${inv.id}`}
+                      className="font-bold text-slate-900 dark:text-white hover:text-[#0066FF] dark:hover:text-[#38BDF8] flex items-center gap-1.5"
+                    >
+                      <span>{inv.invoice_number}</span>
+                      {inv.status === 'DISPUTED' && (
+                        <span className="rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 px-1.5 py-0.2 text-[9px] font-black border border-rose-500/20">
+                          DISPUTE
+                        </span>
+                      )}
                     </Link>
-                    <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                      <span>{inv.customer?.name || 'Customer'}</span>
-                      <span className="rounded bg-slate-800 px-1 text-[10px] text-slate-300">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {inv.customer?.name || 'Customer'}
+                      </span>
+                      <span className="rounded-full bg-slate-100 dark:bg-white/[0.06] px-1.5 text-[9px] font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-white/[0.08]">
                         {inv.customer?.relationship_tier?.replace('_', ' ') || 'STANDARD'}
                       </span>
                     </div>
                   </td>
 
                   {/* Amount */}
-                  <td className="px-4 py-3.5">
-                    <div className="font-semibold text-slate-100">
+                  <td className="py-3.5 px-2">
+                    <div className="font-extrabold text-slate-900 dark:text-white">
                       ₹{(inv.amount_paise / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                     </div>
                     {inv.amount_paid_paise > 0 && (
-                      <div className="text-[10px] text-emerald-400">
+                      <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
                         Paid: ₹{(inv.amount_paid_paise / 100).toLocaleString('en-IN')}
                       </div>
                     )}
                   </td>
 
-                  {/* Due Date & Overdue */}
-                  <td className="px-4 py-3.5">
-                    <div>{inv.due_date ? new Date(inv.due_date).toLocaleDateString('en-IN') : 'N/A'}</div>
-                    <div className="text-[10px] text-amber-400 font-medium">Overdue</div>
+                  {/* Due Date */}
+                  <td className="py-3.5 px-2">
+                    <div className="font-medium text-slate-700 dark:text-slate-300">
+                      {inv.due_date ? new Date(inv.due_date).toLocaleDateString('en-IN') : 'N/A'}
+                    </div>
+                    <div className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                      Overdue
+                    </div>
                   </td>
 
                   {/* Risk Score */}
-                  <td className="px-4 py-3.5">
+                  <td className="py-3.5 px-2">
                     <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${
-                        inv.risk_score >= 75
-                          ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                          : inv.risk_score >= 45
-                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                          : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black border ${
+                        inv.risk_score >= 70
+                          ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                          : inv.risk_score >= 40
+                          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                          : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
                       }`}
                     >
-                      {inv.risk_score >= 75 ? 'CRITICAL' : inv.risk_score >= 45 ? 'HIGH' : 'MEDIUM'} ({inv.risk_score.toFixed(0)})
+                      {inv.risk_score >= 70 ? 'CRITICAL' : inv.risk_score >= 40 ? 'HIGH' : 'MEDIUM'} ({inv.risk_score.toFixed(0)})
                     </span>
                   </td>
 
                   {/* Recovery Probability */}
-                  <td className="px-4 py-3.5">
+                  <td className="py-3.5 px-2">
                     <div className="flex items-center gap-2">
-                      <div className="w-16 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                      <div className="w-14 bg-slate-200 dark:bg-black/50 rounded-full h-1.5 overflow-hidden">
                         <div
-                          className="bg-blue-500 h-1.5 rounded-full"
+                          className="bg-[#0066FF] h-1.5 rounded-full transition-all duration-500"
                           style={{ width: `${Math.round(inv.recovery_probability * 100)}%` }}
                         />
                       </div>
-                      <span className="text-[11px] font-medium text-slate-300">
+                      <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">
                         {Math.round(inv.recovery_probability * 100)}%
                       </span>
                     </div>
                   </td>
 
-                  {/* Stage & Level */}
-                  <td className="px-4 py-3.5">
-                    <div className="font-semibold text-slate-200">{inv.current_stage}</div>
-                    <div className="text-[10px] text-slate-400">Level {inv.current_level} / 7</div>
+                  {/* Stage */}
+                  <td className="py-3.5 px-2">
+                    <div className="font-extrabold text-slate-900 dark:text-slate-100">{inv.current_stage}</div>
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">Level {inv.current_level} / 7</div>
                   </td>
 
                   {/* Actions */}
-                  <td className="px-4 py-3.5 text-right space-x-2">
+                  <td className="py-3.5 px-2 text-right space-x-2">
                     <button
                       onClick={(e) => handleProcessSingle(e, inv.id)}
                       disabled={processingId === inv.id}
-                      className="inline-flex items-center gap-1 rounded bg-blue-600/20 border border-blue-500/30 px-2.5 py-1 text-[11px] font-medium text-blue-300 hover:bg-blue-600/40 transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-1 rounded-full bg-[#0066FF]/10 dark:bg-[#0066FF]/20 border border-[#0066FF]/30 px-3 py-1 text-[11px] font-bold text-[#0066FF] dark:text-[#38BDF8] hover:bg-[#0066FF]/25 transition-colors disabled:opacity-50"
                     >
                       {processingId === inv.id ? (
                         <RefreshCw className="h-3 w-3 animate-spin" />
@@ -308,7 +430,7 @@ export default function DashboardPage() {
                     </button>
                     <Link
                       href={`/invoices/${inv.id}`}
-                      className="inline-flex items-center gap-1 rounded bg-slate-800 px-2.5 py-1 text-[11px] font-medium text-slate-300 hover:bg-slate-700 transition-colors"
+                      className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 dark:bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/[0.08] transition-colors"
                     >
                       <span>Deep Dive</span>
                       <ChevronRight className="h-3 w-3" />
