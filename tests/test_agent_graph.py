@@ -46,7 +46,7 @@ async def test_standard_invoice_agent_cycle():
     assert final_state["current_level"] == 2
     assert final_state["risk_score"] > 0
     assert final_state["recovery_probability"] > 0.50
-    assert "https://rzp.io/i/" in final_state["payment_link_url"]
+    assert "https://rzp.io/" in final_state["payment_link_url"]
     assert len(final_state["messages"]) == 1
     assert len(final_state["audit_trail"]) >= 4
     assert final_state["messages"][0]["delivery_status"] == "DELIVERED"

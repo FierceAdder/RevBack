@@ -12,6 +12,7 @@ from src.agent.state import RecoveryState
 from src.agent.tools import RazorpayTools, EvidenceBundler
 from src.agent.payment_plans import PaymentPlanEngine
 from src.agent.channels import ChannelDispatcher
+from src.agent.checkpointer import get_checkpointer
 from src.engine.risk_scorer import RiskScorer
 from src.engine.policy import PolicyEngine
 from src.engine.confidence_gate import ConfidenceGate
@@ -19,10 +20,13 @@ from src.engine.recovery_predictor import RecoveryPredictor
 from src.llm.tone import ToneEngine
 from src.llm.generators import MessageGenerator
 from src.models.db_models import RelationshipTier, CommunicationChannel, ToneType
+from src.observability.langfuse import observe_agent
+from src.observability.metrics import record_invoice_processed, record_outreach_dispatched
 
 
 # ---------------- Node Implementations ---------------- #
 
+@observe_agent(name="intake_and_diagnose")
 async def intake_and_diagnose_node(state: RecoveryState) -> Dict[str, Any]:
     """Diagnoses receivable health, computes risk score and recovery probability."""
     tier = RelationshipTier(state.get("relationship_tier", "STANDARD"))
@@ -68,6 +72,7 @@ async def intake_and_diagnose_node(state: RecoveryState) -> Dict[str, Any]:
     }
 
 
+@observe_agent(name="policy_evaluation")
 async def policy_evaluation_node(state: RecoveryState) -> Dict[str, Any]:
     """Evaluates deterministic policy rules to determine the next intervention."""
     tier = RelationshipTier(state.get("relationship_tier", "STANDARD"))
@@ -166,14 +171,20 @@ async def plan_and_generate_node(state: RecoveryState) -> Dict[str, Any]:
         customer_name=state["customer_name"],
         customer_email=state["customer_email"],
         customer_phone=state.get("customer_phone"),
+        reference_id=state["invoice_id"],
+        description=f"Payment for invoice {state['invoice_number']}",
     )
 
-    # 2. Check if Structured Payment Plan is offered (Level 4)
+    # 2. Evaluate Payment Plan offer if level >= 3
     payment_plan = None
-    if state["current_level"] == 4:
-        payment_plan = PaymentPlanEngine.generate_plan(amount_paise=amount_paise)
+    if state["current_level"] >= 3:
+        payment_plan = PaymentPlanEngine.generate_plan(
+            amount_paise=amount_paise,
+            relationship_tier=tier,
+            broken_promises_count=1 if state.get("has_broken_promise") else 0,
+        )
 
-    # 3. Generate Message Copy
+    # 3. Dynamic Message Generation
     content, subject = MessageGenerator.generate_message(
         channel=target_channel,
         tone=tone_type,
@@ -182,13 +193,13 @@ async def plan_and_generate_node(state: RecoveryState) -> Dict[str, Any]:
         amount_paise=amount_paise,
         days_overdue=state["days_overdue"],
         payment_link_url=link_data["payment_link_url"],
-        due_date_str=state["due_date_str"],
+        due_date_str=state.get("due_date_str", "recent"),
     )
 
     audit_entry = {
-        "event_type": "COMMUNICATION_PREPARED",
+        "event_type": "ACTION_PLANNED",
         "actor": "AGENT",
-        "action": f"Generated {tone_type.value} copy for {target_channel.value} with Razorpay link {link_data['payment_link_url']}",
+        "action": f"Generated {target_channel.value} message with {tone_type.value} tone. Payment Link: {link_data['payment_link_id']}",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -203,6 +214,7 @@ async def plan_and_generate_node(state: RecoveryState) -> Dict[str, Any]:
     }
 
 
+@observe_agent(name="dispatch_action")
 async def dispatch_action_node(state: RecoveryState) -> Dict[str, Any]:
     """Dispatches communication via Multi-Channel Dispatcher."""
     target_channel = CommunicationChannel(state["selected_channel"])
@@ -220,6 +232,11 @@ async def dispatch_action_node(state: RecoveryState) -> Dict[str, Any]:
         content=state["last_message_content"],
         subject=state.get("last_message_subject"),
     )
+
+    try:
+        record_outreach_dispatched(resolved_channel.value, dispatch_result["delivery_status"])
+    except Exception:
+        pass
 
     audit_actions = [f"Dispatched message via {resolved_channel.value} to {recipient}"]
     if fallback_note:
@@ -270,8 +287,8 @@ def route_after_human_approval(state: RecoveryState) -> Literal["plan_and_genera
 
 # ---------------- Graph Construction ---------------- #
 
-def build_recovery_graph(interrupt_human: bool = False):
-    """Builds and compiles the LangGraph state machine."""
+def build_recovery_graph(interrupt_human: bool = False, checkpointer: Any = None):
+    """Builds and compiles the LangGraph state machine with optional human interruption and checkpointing."""
     workflow = StateGraph(RecoveryState)
 
     # Add Nodes
@@ -317,8 +334,13 @@ def build_recovery_graph(interrupt_human: bool = False):
     workflow.add_edge("dispatch_action", END)
 
     if interrupt_human:
-        return workflow.compile(interrupt_before=["human_approval_gate"])
+        cp = checkpointer or get_checkpointer()
+        return workflow.compile(checkpointer=cp, interrupt_before=["human_approval_gate"])
+    if checkpointer is not None:
+        return workflow.compile(checkpointer=checkpointer)
     return workflow.compile()
 
 
-recovery_agent = build_recovery_graph(interrupt_human=False)
+# Default singleton instance for production with human interruption enabled
+recovery_agent = build_recovery_graph(interrupt_human=True)
+

@@ -109,10 +109,67 @@ class ApprovalType(str, enum.Enum):
     CONFIDENCE_ESCALATION = "CONFIDENCE_ESCALATION"
 
 
+class UserRole(str, enum.Enum):
+    ADMIN = "ADMIN"
+    SUPERVISOR = "SUPERVISOR"
+    VIEWER = "VIEWER"
+
+
+class Tenant(Base):
+    __tablename__ = "tenants"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(128), unique=True, index=True, nullable=False)
+    razorpay_key_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    razorpay_key_secret: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    razorpay_account_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    settings_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    users: Mapped[List["User"]] = relationship("User", back_populates="tenant", cascade="all, delete-orphan")
+    api_keys: Mapped[List["ApiKey"]] = relationship("ApiKey", back_populates="tenant", cascade="all, delete-orphan")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    hashed_password: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), default=UserRole.ADMIN)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    tenant: Mapped[Optional["Tenant"]] = relationship("Tenant", back_populates="users", lazy="selectin")
+
+
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(128), unique=True, index=True, nullable=False)
+    key_prefix: Mapped[str] = mapped_column(String(16), nullable=False)
+    scope: Mapped[str] = mapped_column(String(32), default="ADMIN")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="api_keys")
+
+
 class Customer(Base):
     __tablename__ = "customers"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
     razorpay_customer_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
@@ -138,6 +195,8 @@ class Invoice(Base):
     __tablename__ = "invoices"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    agent_thread_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
     razorpay_invoice_id: Mapped[Optional[str]] = mapped_column(String(64), unique=True, nullable=True)
     customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("customers.id"), nullable=False, index=True)
     invoice_number: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
@@ -255,6 +314,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
     invoice_id: Mapped[str] = mapped_column(String(36), ForeignKey("invoices.id"), nullable=False, index=True)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     actor: Mapped[str] = mapped_column(String(64), default="AGENT")
@@ -275,6 +335,7 @@ class HumanApproval(Base):
     __tablename__ = "human_approvals"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
     invoice_id: Mapped[str] = mapped_column(String(36), ForeignKey("invoices.id"), nullable=False, index=True)
     action_type: Mapped[ApprovalType] = mapped_column(SQLEnum(ApprovalType), nullable=False)
     proposed_action_details: Mapped[dict] = mapped_column(JSON, nullable=False)

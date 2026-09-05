@@ -129,3 +129,51 @@ class MessageGenerator:
                 )
 
         return content, subject
+
+    @classmethod
+    def generate_payment_plan_offer(
+        cls,
+        channel: CommunicationChannel,
+        customer_name: str,
+        invoice_number: str,
+        total_amount_paise: int,
+        installments: list,
+        merchant_name: str = "RevBack Technologies",
+    ) -> tuple[str, Optional[str]]:
+        """Generates communication offering a structured installment plan with per-installment Razorpay links."""
+        total_inr = f"₹{total_amount_paise / 100:,.2f}"
+        inst_summary_lines = []
+        for inst in installments:
+            due_str = inst.get("due_date_iso", "")[:10] if isinstance(inst.get("due_date_iso"), str) else str(inst.get("due_date", ""))[:10]
+            link_str = f" [Pay: {inst['payment_link_url']}]" if inst.get("payment_link_url") else ""
+            inst_summary_lines.append(
+                f"  • Installment {inst['installment_number']}: ₹{inst['amount_paise']/100:,.2f} due on {due_str}{link_str}"
+            )
+        inst_summary = "\n".join(inst_summary_lines)
+
+        first_link = installments[0].get("payment_link_url", "")
+
+        if channel in (CommunicationChannel.WHATSAPP, CommunicationChannel.SMS):
+            subject = None
+            content = (
+                f"Hello {customer_name}! In response to your payment plan request for invoice #{invoice_number} ({total_inr}), "
+                f"we have approved a {len(installments)}-part structured installment schedule:\n\n"
+                f"{inst_summary}\n\n"
+                f"You can settle Installment 1 right away here: {first_link}\n"
+                f"Thank you for working with us!"
+            )
+        else:
+            subject = f"Structured Payment Plan Offer: Invoice #{invoice_number} — {merchant_name}"
+            content = (
+                f"Dear {customer_name},\n\n"
+                f"Thank you for reaching out regarding your account. In light of your request for payment flexibility, "
+                f"we are pleased to offer a structured {len(installments)}-part installment plan for invoice #{invoice_number} ({total_inr}):\n\n"
+                f"Installment Schedule:\n"
+                f"{inst_summary}\n\n"
+                f"Please settle the first installment by the due date to activate this agreement. "
+                f"Each installment includes an individual secure Razorpay payment link.\n\n"
+                f"Warm regards,\nCredit Control Team, {merchant_name}"
+            )
+
+        return content, subject
+

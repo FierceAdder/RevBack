@@ -36,6 +36,13 @@ class LLMClient:
         )
         self._instructor_client = None
 
+        # Initialize Langfuse callbacks if keys are present
+        try:
+            from src.observability.langfuse import setup_langfuse
+            setup_langfuse()
+        except Exception:
+            pass
+
     def _get_instructor(self):
         if self._instructor_client is None:
             import instructor
@@ -63,7 +70,18 @@ class LLMClient:
                     max_tokens=max_tokens,
                     api_key=settings.GEMINI_API_KEY if "gemini" in selected_model else None,
                 )
-                return response.choices[0].message.content or ""
+                content = response.choices[0].message.content or ""
+                # Record metrics if usage available
+                try:
+                    from src.observability.metrics import record_llm_tokens
+                    from src.evaluation.cost_tracker import CostTracker
+                    p_toks = getattr(response.usage, "prompt_tokens", 0) or 0
+                    c_toks = getattr(response.usage, "completion_tokens", 0) or 0
+                    record_llm_tokens(selected_model, p_toks, c_toks)
+                    CostTracker.record_usage(selected_model, p_toks, c_toks)
+                except Exception:
+                    pass
+                return content
             except Exception as e:
                 logger.warning(f"LiteLLM call to {selected_model} failed: {e}. Falling back to mock generator.")
 
@@ -71,7 +89,17 @@ class LLMClient:
         last_user_msg = next(
             (m["content"] for m in reversed(messages) if m["role"] == "user"), ""
         )
-        return self._generate_mock_completion(last_user_msg)
+        mock_output = self._generate_mock_completion(last_user_msg)
+        try:
+            from src.observability.metrics import record_llm_tokens
+            from src.evaluation.cost_tracker import CostTracker
+            est_p = max(10, len(last_user_msg) // 4)
+            est_c = max(10, len(mock_output) // 4)
+            record_llm_tokens(selected_model, est_p, est_c)
+            CostTracker.record_usage(selected_model, est_p, est_c)
+        except Exception:
+            pass
+        return mock_output
 
     async def complete_structured(
         self,

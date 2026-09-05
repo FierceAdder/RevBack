@@ -351,4 +351,43 @@ This document maintains a continuous, detailed log of all architecture decisions
 | **Phase 6** | Benchmark Metric Path | `test_simulation_run_batch_benchmark` failed: `'uplift_percentage_points' not in sim_data`. | Comparative uplift metrics were nested under `sim_data["comparative"]`. | Updated test assertions to check `sim_data["comparative"]["uplift_percentage_points"]` and `roi_multiple`. Verified 49/49 tests pass. |
 | **Phase 7** | PostgreSQL String Truncation | `process_invoice_agent` raised `StringDataRightTruncationError: value too long for type character varying(128)`. | In SQLite length limits on `String(128)` are advisory, but PostgreSQL strictly enforces `VARCHAR(128)` on `audit_logs.action`. Agent policy decisions exceeded 128 chars. | Changed `action` column to `Text` in `src/models/db_models.py` and executed `ALTER TABLE audit_logs ALTER COLUMN action TYPE TEXT;` on PostgreSQL. Re-verified: all batch agent executions complete cleanly. |
 | **Phase 7** | Frontend Stale Render & Dark Styling | User browser showed initial unstyled dark screen lacking Theme Toggle and SVG trajectory curve. | User opened `localhost:3001` before hot-reload finished; subpages had hardcoded dark styles without light-mode classes. | Upgraded `ThemeToggle` to high-visibility segmented pill switch, added `NumberTicker`, `RecoveryChart`, `PipelineVisualizer`, `LiveAgentStream` with animated waveform, and unified all pages (`/invoices`, `/approvals`, `/simulation`) for flawless dual-mode support. Verified: zero compilation errors in `npm run build`. |
+| **Phase 8** | Dev Process Collisions | User reported `I am not able to run it` when running `npm run dev`. | An orphaned `next dev` instance held the dev lock on 3001 and port 3000 was held by an external process; Next.js crashed with `Another next dev server is already running`. | Terminated orphaned processes, created `scripts/dev.sh` unified runner with trap signals and cleanup, and added root `package.json` scripts (`npm run dev`, `npm run test`, `npm run setup`). Verified clean multi-process startup. |
+
+---
+
+## Phase 8: Production Hardening, Enterprise Auth, Multi-Tenancy & Observability
+**Status:** ✅ Completed & Verified
+
+### Objectives & Deliverables
+1. **Foundation & LangGraph Checkpointing (Sprint 1)**:
+   - Replaced wildcard CORS with strict `settings.ALLOWED_ORIGINS` whitelist.
+   - Integrated `slowapi` rate limiting (120 req/min general, 20 req/min auth).
+   - Added async Alembic migrations (`alembic.ini`, `alembic/env.py`) with initial schema and auth revisions.
+   - Attached `AsyncRedisCheckpointer` to LangGraph; paused graph with `interrupt_before=["human_approval_gate"]` and resumed from checkpoint upon supervisor resolution.
+   - Handled `REQUEST_EXTENSION` in inbound messages by generating structured installment plans with individual Razorpay payment links and `expire_by` dates.
+   - Created Celery background workers and Beat periodic tasks (`check_promise_deadlines`, `process_stale_receivables`, `daily_metrics_snapshot`).
+2. **Multi-Tenancy & Cryptographic Authentication (Sprint 2)**:
+   - Added `Tenant`, `User`, `ApiKey`, and `UserRole` (`ADMIN`, `SUPERVISOR`, `VIEWER`) database models.
+   - Scoped `Customer`, `Invoice`, `HumanApproval`, and `AuditLog` to `tenant_id`.
+   - Direct `bcrypt` password hashing and JWT token creation; hashed API key generator (`rzb_live_...`).
+   - Dual-mode authentication middleware supporting both `Bearer <JWT>` and `X-API-Key` headers.
+   - Built frontend `AuthContext.tsx`, `/auth/login` Bento UI page, and security headers middleware.
+3. **Real Channel Dispatchers (Sprint 3)**:
+   - Razorpay native notification integration (`notify: {email: true, sms: true}`).
+   - Resend transactional email client (`src/channels/email.py`) with simulation fallback.
+   - Transactional SMS dispatcher (`src/channels/sms.py`) and WhatsApp Business dispatcher (`src/channels/whatsapp.py`).
+4. **Enterprise Audit Trail (Sprint 4)**:
+   - `GET /api/v1/metrics/audit` endpoint with event filtering, date boundaries, and pagination.
+   - Frontend Audit Dashboard (`/audit`) with actor badges, token cost analytics, and search.
+5. **Observability, Settings & Production Hardening (Sprint 5)**:
+   - Langfuse LLM tracing decorators and LiteLLM automatic callback instrumentation.
+   - Prometheus metrics exposition endpoint (`/metrics`) tracking business counters, latencies, and token spend.
+   - Comprehensive 5-tab Settings UI (`/settings`) for organization policy, Razorpay keys, API key lifecycle, team invitations, and worker status.
+   - Production Docker Compose (`docker-compose.prod.yml`), Nginx reverse proxy (`nginx/nginx.conf`), and unified runner scripts (`scripts/dev.sh`, `scripts/setup.sh`).
+
+### Verification Gate
+- Automated tests: **54/54 passed in 40.26s** (100% success rate).
+- Frontend production build: `npm run build` compiled 10 routes with zero errors.
+- Endpoints verified: `/health` (HTTP 200), `/metrics` (HTTP 200), `/api/v1/metrics/summary` (HTTP 200).
+
 

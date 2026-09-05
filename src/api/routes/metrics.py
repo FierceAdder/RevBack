@@ -3,15 +3,16 @@
 Calculates live recovery rate, capital recovered, DSO impact, and Cost-per-Recovery ROI.
 """
 
-from typing import Dict, Any
-from fastapi import APIRouter, Depends
+from typing import Dict, Any, List, Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, desc
+from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
 from src.db.session import get_db
 from src.models.db_models import (
-    Invoice, Customer, Promise, HumanApproval, InvoiceStatus, RecoveryStage,
+    Invoice, Customer, Promise, HumanApproval, AuditLog, InvoiceStatus, RecoveryStage,
     PromiseStatus, ApprovalStatus
 )
 
@@ -110,3 +111,64 @@ async def get_dashboard_metrics_summary(
         estimated_roi_multiple=estimated_roi,
         stage_breakdown=stage_counts,
     )
+
+
+class AuditLogItemResponse(BaseModel):
+    id: str
+    invoice_id: str
+    invoice_number: Optional[str] = None
+    customer_name: Optional[str] = None
+    event_type: str
+    actor: str
+    action: str
+    reasoning: Optional[str] = None
+    confidence_score: Optional[float] = None
+    token_cost_usd: float = 0.0
+    recorded_at: str
+
+
+@router.get("/audit", response_model=List[AuditLogItemResponse])
+async def get_audit_trail(
+    event_type: Optional[str] = Query(None),
+    invoice_id: Optional[str] = Query(None),
+    limit: int = Query(100, le=500),
+    offset: int = Query(0),
+    db: AsyncSession = Depends(get_db),
+):
+    """Returns immutable bitemporal audit trail records across all receivables."""
+    query = (
+        select(AuditLog)
+        .options(selectinload(AuditLog.invoice).selectinload(Invoice.customer))
+        .order_by(desc(AuditLog.recorded_at))
+        .limit(limit)
+        .offset(offset)
+    )
+    if event_type and event_type != "ALL":
+        query = query.where(AuditLog.event_type == event_type)
+    if invoice_id:
+        query = query.where(AuditLog.invoice_id == invoice_id)
+
+    result = await db.execute(query)
+    logs = result.scalars().all()
+
+    items = []
+    for log in logs:
+        inv_num = log.invoice.invoice_number if log.invoice else None
+        cust_name = log.invoice.customer.name if (log.invoice and log.invoice.customer) else None
+        items.append(
+            AuditLogItemResponse(
+                id=log.id,
+                invoice_id=log.invoice_id,
+                invoice_number=inv_num,
+                customer_name=cust_name,
+                event_type=log.event_type,
+                actor=log.actor,
+                action=log.action,
+                reasoning=log.reasoning,
+                confidence_score=log.confidence_score,
+                token_cost_usd=log.token_cost_usd,
+                recorded_at=log.recorded_at.isoformat(),
+            )
+        )
+    return items
+

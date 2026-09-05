@@ -35,10 +35,38 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
     
+    # Security & CORS
+    FRONTEND_URL: str = "http://localhost:3001"
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://localhost:8000",
+    ]
+
     # Model tiers (Configurable via .env)
-    FAST_MODEL: str = Field(default="gemini/gemini-3.1-flash-lite", description="Model for extraction & classification")
-    REASONING_MODEL: str = Field(default="gemini/gemini-3.1-flash-lite", description="Model for agent reasoning")
-    LEGAL_MODEL: str = Field(default="gemini/gemini-3.1-flash-lite", description="Model for formal demand drafting")
+    FAST_MODEL: str = Field(default="gemini/gemini-2.0-flash", description="Model for extraction & classification")
+    REASONING_MODEL: str = Field(default="gemini/gemini-2.0-flash", description="Model for agent reasoning")
+    LEGAL_MODEL: str = Field(default="gemini/gemini-2.0-flash", description="Model for formal demand drafting")
+
+    # Redis & Background Workers
+    REDIS_URL: str = Field(default="redis://localhost:6379/0", description="Redis connection URL for caching and state")
+    CELERY_BROKER_URL: str = Field(default="redis://localhost:6379/1", description="Celery message broker URL")
+    CELERY_RESULT_BACKEND: str = Field(default="redis://localhost:6379/2", description="Celery result backend URL")
+
+    # Authentication & Security
+    JWT_SECRET: str = Field(default="revback_production_jwt_secret_key_2026_buildathon_secure", description="Secret key for signing JWTs")
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    API_KEY_HEADER: str = "X-API-Key"
+
+    # Transactional Communication (Resend / Twilio)
+    RESEND_API_KEY: Optional[str] = None
+    EMAIL_FROM_ADDRESS: str = "recoveries@revback.ai"
+    TWILIO_ACCOUNT_SID: Optional[str] = None
+    TWILIO_AUTH_TOKEN: Optional[str] = None
+    TWILIO_FROM_NUMBER: Optional[str] = None
 
     # Observability (Langfuse)
     LANGFUSE_PUBLIC_KEY: Optional[str] = None
@@ -57,3 +85,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+

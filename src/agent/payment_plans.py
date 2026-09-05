@@ -19,12 +19,20 @@ class PaymentPlanEngine:
         installment_count: int = 3,
         frequency_days: int = 14,
         start_date: datetime = None,
+        relationship_tier: Any = None,
+        broken_promises_count: int = 0,
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Generates a split payment plan.
         """
         now = start_date or datetime.now(timezone.utc)
-        count = max(2, min(6, installment_count))
+        if broken_promises_count > 0:
+            count = 2
+        elif relationship_tier and getattr(relationship_tier, "value", str(relationship_tier)) == "VIP":
+            count = 4
+        else:
+            count = max(2, min(6, installment_count))
 
         # Base installment calculation with remainder adjustment
         base_amount = amount_paise // count
@@ -57,3 +65,43 @@ class PaymentPlanEngine:
             "installments": installments,
             "created_at_iso": now.isoformat(),
         }
+
+    @classmethod
+    async def generate_plan_with_links(
+        cls,
+        amount_paise: int,
+        invoice_number: str,
+        customer_name: str,
+        customer_email: str,
+        customer_phone: Any = None,
+        installment_count: int = 3,
+        frequency_days: int = 14,
+        start_date: Any = None,
+    ) -> Dict[str, Any]:
+        """Generates structured payment plan with live per-installment Razorpay payment links and expiration dates."""
+        from src.agent.tools import RazorpayTools
+
+        plan = cls.generate_plan(
+            amount_paise=amount_paise,
+            installment_count=installment_count,
+            frequency_days=frequency_days,
+            start_date=start_date,
+        )
+
+        for inst in plan["installments"]:
+            due_dt = datetime.fromisoformat(inst["due_date_iso"])
+            expire_timestamp = int(due_dt.timestamp())
+            link_data = await RazorpayTools.create_payment_link(
+                amount_paise=inst["amount_paise"],
+                invoice_number=f"{invoice_number}-INST-{inst['installment_number']}",
+                customer_name=customer_name,
+                customer_email=customer_email,
+                customer_phone=customer_phone,
+                description=f"Installment {inst['installment_number']}/{plan['installment_count']} for Invoice #{invoice_number}",
+                expire_by=expire_timestamp,
+            )
+            inst["razorpay_payment_link_id"] = link_data["payment_link_id"]
+            inst["payment_link_url"] = link_data["payment_link_url"]
+
+        return plan
+

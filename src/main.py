@@ -11,7 +11,7 @@ from typing import Dict, Any
 
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from src.config import settings
 from src.db.session import init_db
@@ -20,6 +20,10 @@ from src.api.routes.invoices import router as invoices_router
 from src.api.routes.approvals import router as approvals_router
 from src.api.routes.metrics import router as metrics_router
 from src.api.routes.simulation import router as simulation_router
+from src.api.routes.auth import router as auth_router
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Configure Logging
 logging.basicConfig(
@@ -62,15 +66,15 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# Rate Limiter Setup
+limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Configure CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8000",
-        "*",
-    ],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -112,11 +116,23 @@ async def health_check() -> Dict[str, Any]:
 
 # Include Routers under API v1
 api_v1_prefix = "/api/v1"
+app.include_router(auth_router, prefix=api_v1_prefix)
 app.include_router(invoices_router, prefix=api_v1_prefix)
 app.include_router(approvals_router, prefix=api_v1_prefix)
 app.include_router(metrics_router, prefix=api_v1_prefix)
 app.include_router(simulation_router, prefix=api_v1_prefix)
 app.include_router(webhooks_router, prefix=api_v1_prefix)
+
+
+@app.get("/metrics", tags=["Observability"], response_class=Response)
+async def prometheus_metrics() -> Response:
+    """Prometheus exposition metrics endpoint for monitoring and alerts."""
+    from src.observability.metrics import get_prometheus_metrics
+    return Response(
+        content=get_prometheus_metrics(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
 
 
 if __name__ == "__main__":

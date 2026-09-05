@@ -13,6 +13,53 @@ class CostTracker:
 
     USD_TO_INR_EXCHANGE_RATE = 84.0  # ₹84 per USD
 
+    # Approximate pricing per 1M tokens in USD
+    MODEL_PRICING = {
+        "gemini": {"prompt": 0.10, "completion": 0.40},
+        "gpt-4o": {"prompt": 2.50, "completion": 10.00},
+        "claude": {"prompt": 3.00, "completion": 15.00},
+        "default": {"prompt": 0.20, "completion": 0.60},
+    }
+
+    _total_prompt_tokens: int = 0
+    _total_completion_tokens: int = 0
+    _total_cost_usd: float = 0.0
+
+    @classmethod
+    def record_usage(
+        cls,
+        model: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+    ) -> float:
+        """Records token consumption and returns estimated USD cost."""
+        pricing = cls.MODEL_PRICING.get("default")
+        model_lower = model.lower()
+        for key, rate in cls.MODEL_PRICING.items():
+            if key in model_lower:
+                pricing = rate
+                break
+
+        cost = (
+            (prompt_tokens / 1_000_000.0) * pricing["prompt"]
+            + (completion_tokens / 1_000_000.0) * pricing["completion"]
+        )
+        cls._total_prompt_tokens += prompt_tokens
+        cls._total_completion_tokens += completion_tokens
+        cls._total_cost_usd += cost
+        return cost
+
+    @classmethod
+    def get_token_summary(cls) -> Dict[str, Any]:
+        """Returns total recorded token usage and estimated spend."""
+        return {
+            "total_prompt_tokens": cls._total_prompt_tokens,
+            "total_completion_tokens": cls._total_completion_tokens,
+            "total_tokens": cls._total_prompt_tokens + cls._total_completion_tokens,
+            "total_cost_usd": round(cls._total_cost_usd, 6),
+            "total_cost_inr": round(cls._total_cost_usd * cls.USD_TO_INR_EXCHANGE_RATE, 2),
+        }
+
     @classmethod
     def calculate_roi(
         cls,
@@ -43,3 +90,4 @@ class CostTracker:
             "cost_per_recovery_pct": round(cost_percentage, 3),  # e.g. 0.05% of recovered capital
             "roi_multiple": round(roi_multiple, 1),              # e.g. 185x ROI
         }
+

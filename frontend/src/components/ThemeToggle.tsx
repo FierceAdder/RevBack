@@ -6,38 +6,41 @@ import { useTheme } from '@/context/ThemeContext';
 
 export default function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
+  const isDark = theme === 'dark';
 
   return (
-    <div
+    <button
       onClick={toggleTheme}
-      className="relative flex items-center bg-slate-200/90 dark:bg-slate-900/90 p-0.5 rounded-full border border-slate-300 dark:border-slate-800 cursor-pointer select-none transition-all shadow-inner group hover:border-slate-400 dark:hover:border-slate-700"
-      title={`Current: ${theme.toUpperCase()} mode. Click to switch.`}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleTheme()}
-      aria-label="Toggle light and dark mode"
+      type="button"
+      role="switch"
+      aria-checked={isDark}
+      aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+      title={`Current: ${theme.toUpperCase()} mode. Click to toggle.`}
+      className="group relative inline-flex h-7 w-13 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 bg-slate-200/80 dark:bg-white/[0.08] border border-slate-300/70 dark:border-white/10 shadow-inner hover:border-slate-400 dark:hover:border-white/20"
     >
-      <div
-        className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold transition-all duration-200 ${
-          theme === 'light'
-            ? 'bg-white text-amber-600 shadow-sm'
-            : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-        }`}
-      >
-        <Sun className={`h-3.5 w-3.5 ${theme === 'light' ? 'text-amber-500 fill-amber-500/20' : 'text-slate-400 dark:text-slate-500'}`} />
-        <span className="text-[10px] hidden sm:inline tracking-wider font-extrabold uppercase">Light</span>
-      </div>
+      {/* Background static icons for track */}
+      <span className="absolute left-1.5 flex h-4 w-4 items-center justify-center pointer-events-none text-amber-500/60 dark:text-slate-600 transition-opacity">
+        <Sun className="h-3 w-3" />
+      </span>
+      <span className="absolute right-1.5 flex h-4 w-4 items-center justify-center pointer-events-none text-slate-400 dark:text-blue-400/60 transition-opacity">
+        <Moon className="h-3 w-3" />
+      </span>
 
-      <div
-        className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold transition-all duration-200 ${
-          theme === 'dark'
-            ? 'bg-slate-800 text-blue-400 shadow-sm'
-            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-        }`}
+      {/* Smooth sliding thumb */}
+      <span
+        className={`pointer-events-none flex h-6 w-6 items-center justify-center rounded-full shadow-md transition-all duration-300 ease-out transform ${
+          isDark
+            ? 'translate-x-6 bg-[#0E131F] text-blue-400 border border-blue-500/30 shadow-blue-500/20'
+            : 'translate-x-0 bg-white text-amber-500 border border-amber-200/80 shadow-amber-500/10'
+        } group-hover:scale-105`}
       >
-        <Moon className={`h-3.5 w-3.5 ${theme === 'dark' ? 'text-blue-400 fill-blue-400/20' : 'text-slate-400'}`} />
-        <span className="text-[10px] hidden sm:inline tracking-wider font-extrabold uppercase">Dark</span>
-      </div>
-    </div>
+        {isDark ? (
+          <Moon className="h-3.5 w-3.5 fill-blue-400/20 text-blue-400 transition-transform duration-300 -rotate-12" />
+        ) : (
+          <Sun className="h-3.5 w-3.5 fill-amber-500/20 text-amber-500 transition-transform duration-300 rotate-0" />
+        )}
+      </span>
+    </button>
   );
 }
+

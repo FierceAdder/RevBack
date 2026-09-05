@@ -23,6 +23,8 @@ from src.models.schemas import (
 )
 from src.agent.graph import recovery_agent
 from src.agent.tools import EvidenceBundler
+from src.agent.payment_plans import PaymentPlanEngine
+from src.llm.generators import MessageGenerator
 from src.llm.extractors import DebtorExtractors
 from pydantic import BaseModel, Field
 
@@ -220,19 +222,34 @@ async def process_invoice_agent(
         "current_level": invoice.current_level,
         "current_stage": invoice.current_stage.value,
         "confidence_score": invoice.confidence_score,
-        "human_approved": True,  # Standard autonomous path
+        "human_approved": False,
         "messages": [],
         "audit_trail": [],
     }
 
-    # Execute LangGraph Agent
-    final_state = await recovery_agent.ainvoke(initial_state)
+    # Manage LangGraph checkpointing thread
+    thread_id = invoice.agent_thread_id or f"thread_{invoice.id}"
+    invoice.agent_thread_id = thread_id
+    agent_config = {"configurable": {"thread_id": thread_id}}
+
+    # Execute LangGraph Agent with checkpointing
+    final_state = await recovery_agent.ainvoke(initial_state, config=agent_config)
+
+    # Inspect checkpoint snapshot to verify if paused at approval gate
+    try:
+        snap = recovery_agent.get_state(agent_config)
+        is_paused_for_approval = bool(snap.next and "human_approval_gate" in snap.next)
+    except Exception:
+        is_paused_for_approval = False
 
     # Persist outputs back to DB
     invoice.risk_score = final_state.get("risk_score", invoice.risk_score)
     invoice.recovery_probability = final_state.get("recovery_probability", invoice.recovery_probability)
     invoice.current_level = final_state.get("current_level", invoice.current_level)
-    invoice.current_stage = RecoveryStage(final_state.get("current_stage", "ACT"))
+    if is_paused_for_approval or final_state.get("requires_human_approval"):
+        invoice.current_stage = RecoveryStage.ESCALATION
+    else:
+        invoice.current_stage = RecoveryStage(final_state.get("current_stage", "ACT"))
     if final_state.get("selected_tone"):
         invoice.optimal_tone = ToneType(final_state["selected_tone"])
     if final_state.get("payment_link_id"):
@@ -433,6 +450,85 @@ async def ingest_inbound_message(
             action=f"Recorded commitment to pay ₹{promise_res.promised_amount_paise / 100:,.2f}",
             reasoning=f"Extracted from debtor quote: '{promise_res.raw_quote}'",
             confidence_score=promise_res.confidence,
+            recorded_at=now,
+        )
+        db.add(audit)
+
+    # 5. Handle Payment Plan Request / Extension Intent
+    if (intent_res.intent == "REQUEST_EXTENSION" or "payment plan" in payload.message.lower()) and not dispute_res.is_disputed:
+        plan_dict = await PaymentPlanEngine.generate_plan_with_links(
+            amount_paise=invoice.amount_paise,
+            invoice_number=invoice.invoice_number,
+            customer_name=invoice.customer.name,
+            customer_email=invoice.customer.email,
+            customer_phone=invoice.customer.phone,
+            installment_count=3,
+            frequency_days=14,
+            start_date=now,
+        )
+
+        db_plan = PaymentPlan(
+            invoice_id=invoice.id,
+            total_amount_paise=plan_dict["total_amount_paise"],
+            installment_count=plan_dict["installment_count"],
+            frequency_days=plan_dict["frequency_days"],
+            terms_summary=plan_dict["terms_summary"],
+            status="PROPOSED",
+            valid_at=now,
+            recorded_at=now,
+        )
+        db.add(db_plan)
+        await db.flush()
+
+        for inst in plan_dict.get("installments", []):
+            due_dt = datetime.fromisoformat(inst["due_date_iso"])
+            db_inst = PaymentPlanInstallment(
+                payment_plan_id=db_plan.id,
+                installment_number=inst["installment_number"],
+                amount_paise=inst["amount_paise"],
+                due_date=due_dt,
+                razorpay_payment_link_id=inst.get("razorpay_payment_link_id"),
+                status="PENDING",
+            )
+            db.add(db_inst)
+
+        # Generate responsive offer communication
+        resp_channel = CommunicationChannel(payload.channel) if payload.channel in [c.value for c in CommunicationChannel] else CommunicationChannel.EMAIL
+        offer_content, offer_subject = MessageGenerator.generate_payment_plan_offer(
+            channel=resp_channel,
+            customer_name=invoice.customer.name,
+            invoice_number=invoice.invoice_number,
+            total_amount_paise=invoice.amount_paise,
+            installments=plan_dict.get("installments", []),
+        )
+
+        outbound_comm = Communication(
+            invoice_id=invoice.id,
+            channel=resp_channel,
+            direction=CommunicationDirection.OUTBOUND,
+            sender="RevBack Autonomous Agent",
+            recipient=payload.sender or invoice.customer.email,
+            subject=offer_subject,
+            content=offer_content,
+            intervention_level=invoice.current_level,
+            tone=ToneType.COLLABORATIVE,
+            sent_at=now,
+            valid_at=now,
+            recorded_at=now,
+        )
+        db.add(outbound_comm)
+
+        invoice.current_stage = RecoveryStage.PROMISE_TRACKING
+        action_taken += f" | Payment plan requested. Generated 3-part installment schedule with Razorpay links and dispatched offer to {payload.sender or invoice.customer.email}."
+
+        audit = AuditLog(
+            invoice_id=invoice.id,
+            tenant_id=invoice.tenant_id,
+            event_type="PAYMENT_PLAN_OFFERED",
+            actor="AGENT",
+            action=f"Auto-generated and dispatched 3-part payment plan to debtor in response to extension request.",
+            reasoning=f"Debtor message indicated liquidity/extension need: '{payload.message[:150]}'",
+            confidence_score=intent_res.confidence,
             recorded_at=now,
         )
         db.add(audit)

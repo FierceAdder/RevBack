@@ -19,6 +19,8 @@ class RazorpayTools:
         customer_email: str,
         customer_phone: Optional[str] = None,
         description: Optional[str] = None,
+        expire_by: Optional[int] = None,
+        reference_id: Optional[str] = None,
     ) -> Dict[str, str]:
         """
         Creates a Razorpay Payment Link.
@@ -40,14 +42,17 @@ class RazorpayTools:
                     },
                     "notify": {"sms": bool(customer_phone), "email": bool(customer_email)},
                     "reminder_enable": True,
-                    "reference_id": f"ref_{invoice_number}_{uuid.uuid4().hex[:6]}",
+                    "reference_id": reference_id or f"ref_{invoice_number}_{uuid.uuid4().hex[:6]}",
                 }
+                if expire_by:
+                    payload["expire_by"] = expire_by
+
                 response = client.payment_link.create(payload)
                 return {
                     "payment_link_id": response.get("id", f"plink_{uuid.uuid4().hex[:10]}"),
                     "payment_link_url": response.get("short_url", f"https://rzp.io/i/{uuid.uuid4().hex[:8]}"),
                 }
-            except Exception as e:
+            except Exception:
                 pass
 
         # Fallback/Deterministic Mock Link
@@ -56,6 +61,47 @@ class RazorpayTools:
         return {
             "payment_link_id": mock_id,
             "payment_link_url": mock_url,
+        }
+
+    @classmethod
+    async def check_payment_status(cls, payment_link_id: str) -> Dict[str, Any]:
+        """Fetches live payment status for a Razorpay payment link."""
+        if settings.RAZORPAY_KEY_ID and not settings.RAZORPAY_KEY_ID.startswith("rzp_test_revback_mock"):
+            try:
+                import razorpay
+                client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+                link = client.payment_link.fetch(payment_link_id)
+                return {
+                    "payment_link_id": payment_link_id,
+                    "status": link.get("status", "created"),
+                    "amount_paid": link.get("amount_paid", 0),
+                    "is_paid": link.get("status") == "paid",
+                }
+            except Exception:
+                pass
+
+        return {
+            "payment_link_id": payment_link_id,
+            "status": "created",
+            "amount_paid": 0,
+            "is_paid": False,
+        }
+
+    @classmethod
+    async def schedule_followup(
+        cls,
+        invoice_id: str,
+        scheduled_for_iso: str,
+        action_type: str = "OUTREACH",
+    ) -> Dict[str, Any]:
+        """Schedules a future outreach task for the agent."""
+        task_id = f"task_{invoice_id}_{uuid.uuid4().hex[:8]}"
+        return {
+            "task_id": task_id,
+            "invoice_id": invoice_id,
+            "scheduled_for": scheduled_for_iso,
+            "action_type": action_type,
+            "status": "SCHEDULED",
         }
 
 

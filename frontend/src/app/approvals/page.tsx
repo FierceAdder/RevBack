@@ -58,25 +58,42 @@ export default function ApprovalsPage() {
     setAnimatingId(id);
     setAnimatingAction(decision);
 
+    // Set a provisional toast immediately so there's instant feedback
     if (decision === 'APPROVED') {
       setToast({
         type: 'APPROVED',
-        title: 'Notice Dispatched to Debtor',
-        message: 'Statutory notice sent with signed Razorpay payment link. Webhook listener active.',
+        title: 'Dispatching Notice…',
+        message: 'Agent is generating Razorpay payment link and dispatching statutory notice.',
         invoiceRef,
       });
     } else {
       setToast({
         type: 'REJECTED',
-        title: 'Escalation Halted & Deleted',
-        message: 'Supervisor halted outreach. Case deleted from active queue and archived.',
+        title: 'Escalation Halted & Archived',
+        message: 'Supervisor halted outreach. Case removed from active queue.',
         invoiceRef,
       });
     }
 
     try {
-      await resolveApproval(id, decision, reviewNotes[id] || '');
-      // Match the exact duration of the CSS animation for zero-jank dismissal
+      const result = await resolveApproval(id, decision, reviewNotes[id] || '');
+
+      // Update toast with real result from backend
+      if (decision === 'APPROVED') {
+        const dispatched = result?.dispatched ?? false;
+        const channel = result?.dispatched_channel ?? 'EMAIL';
+        const link = result?.payment_link_url;
+        setToast({
+          type: 'APPROVED',
+          title: dispatched ? `Notice Sent via ${channel}` : 'Approval Recorded',
+          message: dispatched
+            ? `Formal notice dispatched. ${link ? `Razorpay link: ${link.slice(0, 32)}…` : 'Webhook listener active.'}`
+            : result?.next_step || 'Intervention approved and recorded.',
+          invoiceRef,
+        });
+      }
+
+      // Let the card animation finish, then refresh the queue
       const animDuration = decision === 'APPROVED' ? 700 : 650;
       setTimeout(async () => {
         await loadApprovals();
@@ -85,11 +102,21 @@ export default function ApprovalsPage() {
       }, animDuration);
     } catch (err) {
       console.error('Decision error:', err);
+      setToast({
+        type: decision,
+        title: decision === 'APPROVED' ? 'Dispatch Failed' : 'Already Resolved',
+        message: (err as Error)?.message?.includes('already resolved')
+          ? 'This case was already resolved by another session.'
+          : 'Something went wrong. Please refresh the queue.',
+        invoiceRef,
+      });
+      // Always reload the queue on error so stale cards disappear
+      await loadApprovals();
       setAnimatingId(null);
       setAnimatingAction(null);
     } finally {
       setResolvingId(null);
-      setTimeout(() => setToast(null), 3500);
+      setTimeout(() => setToast(null), 4500);
     }
   };
 

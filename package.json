@@ -1,0 +1,18 @@
+{
+  "name": "revback",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RevBack — Autonomous AI Revenue Recovery & Escalation Agent",
+  "scripts": {
+    "dev": "bash scripts/dev.sh",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "source .venv/bin/activate && uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload",
+    "dev:worker": "source .venv/bin/activate && celery -A src.workers.celery_app.celery_app worker --loglevel=info",
+    "dev:beat": "source .venv/bin/activate && celery -A src.workers.celery_app.celery_app beat --loglevel=info",
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix frontend run start",
+    "test": "source .venv/bin/activate && pytest",
+    "setup": "bash scripts/setup.sh",
+    "lint": "npm --prefix frontend run lint"
+  }
+}
