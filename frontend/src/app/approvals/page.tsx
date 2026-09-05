@@ -77,7 +77,7 @@ export default function ApprovalsPage() {
     try {
       await resolveApproval(id, decision, reviewNotes[id] || '');
       // Match the exact duration of the CSS animation for zero-jank dismissal
-      const animDuration = decision === 'APPROVED' ? 750 : 700;
+      const animDuration = decision === 'APPROVED' ? 700 : 650;
       setTimeout(async () => {
         await loadApprovals();
         setAnimatingId(null);
@@ -191,7 +191,7 @@ export default function ApprovalsPage() {
       </div>
 
       {/* Approvals Cards */}
-      <div className="space-y-4">
+      <div className="space-y-4 [perspective:1400px]">
         {pending.length === 0 ? (
           <div className="rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0A0D14]/80 backdrop-blur-xl p-12 text-center text-slate-400 space-y-2 shadow-sm dark:shadow-2xl">
             <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto" />
@@ -209,7 +209,9 @@ export default function ApprovalsPage() {
             return (
               <div
                 key={appr.id}
-                className={`rounded-3xl border backdrop-blur-xl p-6 space-y-4 shadow-sm dark:shadow-2xl transition-all duration-300 relative overflow-hidden ${
+                className={`rounded-3xl border backdrop-blur-xl p-6 space-y-4 shadow-sm dark:shadow-2xl relative overflow-hidden ${
+                  isThisAnimating ? 'transition-none' : 'transition-all duration-300'
+                } ${
                   isApproved
                     ? 'animate-warp-send border-emerald-500/50 bg-[#071912]/95 shadow-[0_0_35px_rgba(16,185,129,0.25),inset_0_0_25px_rgba(16,185,129,0.12)] ring-1 ring-emerald-500/40'
                     : isRejected
@@ -219,7 +221,12 @@ export default function ApprovalsPage() {
               >
                 {/* Slight Green Glow Accent Inside the Card */}
                 {isApproved && (
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.2),transparent_70%)] ring-1 ring-inset ring-emerald-500/40 shadow-[inset_0_0_30px_rgba(16,185,129,0.15)] animate-pulse" />
+                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.2),transparent_70%)] ring-1 ring-inset ring-emerald-500/40 shadow-[inset_0_0_30px_rgba(16,185,129,0.15)]" />
+                )}
+
+                {/* Slight Rose Glow Accent Inside the Card for Downward Rejection */}
+                {isRejected && (
+                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(ellipse_at_bottom,rgba(244,63,94,0.2),transparent_70%)] ring-1 ring-inset ring-rose-500/40 shadow-[inset_0_0_30px_rgba(244,63,94,0.15)]" />
                 )}
 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-white/[0.08] pb-3">

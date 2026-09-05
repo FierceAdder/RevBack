@@ -254,47 +254,33 @@ html.dark .flux-grid {
 @keyframes warpRightSend {
   0% {
     opacity: 1;
-    transform: perspective(1200px) rotateY(0deg) scale(1) translate3d(0, 0, 0);
+    transform: perspective(1400px) rotateY(0deg) scale(1) translate3d(0, 0, 0);
   }
-  25% {
-    opacity: 0.98;
-    transform: perspective(1200px) rotateY(-18deg) scale(0.88) translate3d(24px, 0, 0);
-  }
-  55% {
-    opacity: 0.82;
-    transform: perspective(1200px) rotateY(-42deg) scale(0.52) translate3d(85px, 0, 0);
-  }
-  80% {
-    opacity: 0.4;
-    transform: perspective(1200px) rotateY(-62deg) scale(0.2) translate3d(160px, 0, 0);
+  30% {
+    opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: perspective(1200px) rotateY(-75deg) scale(0.03) translate3d(230px, 0, 0);
+    transform: perspective(1400px) rotateY(-68deg) scale(0.04) translate3d(280px, 0, 0);
   }
 }
 
-@keyframes warpRejectBin {
+@keyframes warpRejectDown {
   0% {
     opacity: 1;
-    transform: perspective(1200px) rotateY(0deg) rotateX(0deg) scale(1) translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0) scale(1);
   }
   25% {
-    opacity: 0.95;
-    transform: perspective(1200px) rotateY(-14deg) rotateX(6deg) scale(0.88) translate3d(20px, 12px, 0);
-  }
-  60% {
-    opacity: 0.7;
-    transform: perspective(1200px) rotateY(-36deg) rotateX(16deg) scale(0.48) translate3d(70px, 40px, 0);
+    opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: perspective(1200px) rotateY(-60deg) rotateX(28deg) scale(0.03) translate3d(140px, 80px, 0);
+    transform: translate3d(0, 260px, 0) scale(0.72);
   }
 }
 
 .animate-warp-send {
-  animation: warpRightSend 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: warpRightSend 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   pointer-events: none;
   transform-origin: 100% 50%;
   will-change: transform, opacity;
@@ -303,10 +289,9 @@ html.dark .flux-grid {
 }
 
 .animate-warp-reject {
-  animation: warpRejectBin 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: warpRejectDown 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   pointer-events: none;
-  transform-origin: 100% 75%;
+  transform-origin: 50% 100%;
   will-change: transform, opacity;
   backface-visibility: hidden;
-  transform-style: preserve-3d;
 }
