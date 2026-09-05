@@ -207,7 +207,7 @@ export default function SimulationPage() {
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3">
             <div>
               <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                Razorpay Track 3 Solution
+                Autonomous Recovery Solution
               </span>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">RevBack Autonomous Agent</h3>
             </div>

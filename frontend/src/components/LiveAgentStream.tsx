@@ -74,7 +74,7 @@ export default function LiveAgentStream() {
   const [events] = useState<AgentEvent[]>(INITIAL_EVENTS);
 
   return (
-    <div className="rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0A0D14]/80 backdrop-blur-xl p-6 shadow-sm dark:shadow-2xl transition-all hover:border-blue-500/30">
+    <div className="h-full flex flex-col justify-between rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0A0D14]/80 backdrop-blur-xl p-6 shadow-sm dark:shadow-2xl transition-all hover:border-blue-500/30">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/[0.08] pb-4">
         <div className="flex items-center gap-3">
@@ -110,11 +110,11 @@ export default function LiveAgentStream() {
       </div>
 
       {/* Events List */}
-      <div className="mt-4 space-y-2.5">
+      <div className="mt-4 flex-1 flex flex-col justify-between space-y-2">
         {events.map((ev) => (
           <div
             key={ev.id}
-            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 rounded-2xl bg-slate-50/70 dark:bg-black/40 border border-slate-200/60 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.12] transition-all text-xs"
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 sm:p-3 rounded-2xl bg-slate-50/70 dark:bg-black/40 border border-slate-200/60 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.12] transition-all text-xs"
           >
             <div className="flex items-start sm:items-center gap-3">
               <span className={`rounded-lg px-2.5 py-1 text-[10px] font-extrabold border shrink-0 uppercase tracking-wide ${ev.badgeColor}`}>

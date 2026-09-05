@@ -1,6 +1,6 @@
 # RevBack — AI Revenue Recovery & Escalation Agent
 
-Autonomous revenue-recovery agent built for Razorpay Buildathon 2026 (Track 3: AI Revenue Recovery).
+Autonomous B2B revenue-recovery agent built for Razorpay Buildathon 2026.
 
 ## Architecture & Overview
 - **Agent Core**: LangGraph stateful recovery lifecycle engine.

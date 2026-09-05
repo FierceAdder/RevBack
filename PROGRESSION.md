@@ -1,6 +1,6 @@
 # RevBack — Complete Engineering Progression & Story Log
 
-This document maintains a continuous, detailed log of all architecture decisions, phase milestones, verification results, and demo story hooks for **RevBack** (Razorpay Buildathon 2026 · Track 3: AI Revenue Recovery). It is continuously appended after every phase.
+This document maintains a continuous, detailed log of all architecture decisions, phase milestones, verification results, and demo story hooks for **RevBack** (Razorpay Buildathon 2026). It is continuously appended after every phase.
 
 ---
 

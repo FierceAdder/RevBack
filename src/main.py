@@ -54,7 +54,7 @@ app = FastAPI(
     title="RevBack — AI Revenue Recovery & Escalation Engine",
     description=(
         "Autonomous B2B revenue recovery agent: Detect, Recover, Verify, Escalate. "
-        "Built for Razorpay Buildathon 2026 · Track 3 (AI Revenue Recovery)."
+        "Built for Razorpay Buildathon 2026."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -82,7 +82,7 @@ app.add_middleware(
 async def root() -> Dict[str, Any]:
     return {
         "app": settings.APP_NAME,
-        "track": "Razorpay Buildathon 2026 · Track 3: AI Revenue Recovery",
+        "event": "Razorpay Buildathon 2026",
         "tagline": "Find revenue that's slipping away and win it back.",
         "status": "online",
         "docs": "/docs",

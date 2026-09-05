@@ -6,7 +6,7 @@ import { ThemeProvider } from '@/context/ThemeContext';
 export const metadata: Metadata = {
   title: 'RevBack — AI Revenue Recovery & Escalation Agent',
   description:
-    'Autonomous B2B revenue recovery agent: Detect, Recover, Verify, Escalate. Built for Razorpay Buildathon 2026 (Track 3).',
+    'Autonomous B2B revenue recovery agent: Detect, Recover, Verify, Escalate. Built for Razorpay Buildathon 2026.',
 };
 
 export default function RootLayout({
@@ -21,7 +21,7 @@ export default function RootLayout({
           <Navigation />
           <main className="flex-1 pt-20 sm:pt-24 pb-20">{children}</main>
           <footer className="border-t border-slate-200 dark:border-white/[0.08] bg-white dark:bg-black/90 py-6 text-center text-xs text-slate-500 transition-colors">
-            RevBack · Razorpay Buildathon 2026 (Track 3: AI Revenue Recovery) · Autonomous Agent Architecture
+            RevBack · Razorpay Buildathon 2026 · Autonomous Revenue Recovery Agent Architecture
           </footer>
         </ThemeProvider>
       </body>

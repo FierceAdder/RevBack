@@ -1,6 +1,6 @@
 # RevBack — AI Revenue Recovery & Escalation Agent
 
-## Razorpay Buildathon 2026 · Track 3: AI Revenue Recovery
+## Razorpay Buildathon 2026 · RevBack AI Revenue Recovery
 
 An autonomous revenue-recovery agent that detects at-risk B2B receivables, diagnoses causes, selects interventions, tracks commitments, verifies recovery, and escalates persistent defaults — with a complete audit trail and measured financial outcomes.
 

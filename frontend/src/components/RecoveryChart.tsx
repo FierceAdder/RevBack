@@ -28,7 +28,7 @@ export default function RecoveryChart() {
 
   // SVG dimensions
   const width = 760;
-  const height = 240;
+  const height = 250;
   const paddingX = 45;
   const paddingY = 30;
 
@@ -52,7 +52,7 @@ export default function RecoveryChart() {
   const activePoint = hoveredIdx !== null ? TRAJECTORY_DATA[hoveredIdx] : TRAJECTORY_DATA[TRAJECTORY_DATA.length - 1];
 
   return (
-    <div className="rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0A0D14]/80 backdrop-blur-xl p-6 shadow-sm dark:shadow-2xl transition-all hover:border-blue-500/30">
+    <div className="h-full flex flex-col justify-between rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-[#0A0D14]/80 backdrop-blur-xl p-6 shadow-sm dark:shadow-2xl transition-all hover:border-blue-500/30">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-white/[0.08] pb-4">
         <div>

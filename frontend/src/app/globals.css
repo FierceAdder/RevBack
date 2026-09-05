@@ -123,3 +123,190 @@ html.dark .flux-grid {
 .animate-wave-2 { animation: waveBar 1.2s ease-in-out 0.2s infinite; }
 .animate-wave-3 { animation: waveBar 1.2s ease-in-out 0.4s infinite; }
 .animate-wave-4 { animation: waveBar 1.2s ease-in-out 0.6s infinite; }
+
+/* ==========================================================================
+   Ultra-Smooth Message Sent & Delete Animations (Linear / Superhuman grade)
+   ========================================================================== */
+
+/* 1. Message Dispatched / Sent: Smooth ascent and collapse */
+@keyframes messageSentFly {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 0 rgba(16, 185, 129, 0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-6px) scale(1.01);
+    box-shadow: 0 18px 45px -5px rgba(16, 185, 129, 0.45), inset 0 1px 0 rgba(16, 185, 129, 0.6);
+    border-color: rgba(16, 185, 129, 0.8);
+  }
+  65% {
+    opacity: 0.6;
+    transform: translateY(-24px) scale(0.98);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-48px) scale(0.95);
+    filter: blur(1px);
+    max-height: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+  }
+}
+
+/* 2. Message Deleted / Rejected: Snappy swipe left and collapse */
+@keyframes messageDeleteSwipe {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    border-color: rgba(244, 63, 94, 0.2);
+  }
+  25% {
+    opacity: 1;
+    transform: translateX(8px) scale(0.995);
+    box-shadow: 0 12px 35px -5px rgba(244, 63, 94, 0.4);
+    border-color: rgba(244, 63, 94, 0.85);
+  }
+  60% {
+    opacity: 0.5;
+    transform: translateX(-35px) scale(0.96);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-60px) scale(0.92);
+    filter: blur(1px);
+    max-height: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+  }
+}
+
+/* 3. Paper plane takeoff */
+@keyframes planeTakeoff {
+  0% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  35% {
+    transform: translate(6px, -4px) scale(1.2) rotate(-12deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(38px, -26px) scale(0.4) rotate(35deg);
+    opacity: 0;
+  }
+}
+
+/* 4. Trash snappy */
+@keyframes trashSnappy {
+  0% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(1.25) rotate(-15deg); }
+  65% { transform: scale(1.1) rotate(10deg); }
+  100% { transform: scale(0.85) rotate(0deg); opacity: 0; }
+}
+
+/* 5. Sleek Toast Slide In */
+@keyframes toastSlideSmooth {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-message-sent {
+  animation: messageSentFly 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+}
+
+.animate-message-deleted {
+  animation: messageDeleteSwipe 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
+.animate-plane-takeoff {
+  animation: planeTakeoff 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-trash-snappy {
+  animation: trashSnappy 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.animate-toast-smooth {
+  animation: toastSlideSmooth 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ==========================================================================
+   Warp-to-Side Trajectory Dismissal Animation (Pure GPU 3D Compositor)
+   Hardware-accelerated perspective warp: 60/120fps buttery smooth
+   ========================================================================== */
+
+@keyframes warpRightSend {
+  0% {
+    opacity: 1;
+    transform: perspective(1200px) rotateY(0deg) scale(1) translate3d(0, 0, 0);
+  }
+  25% {
+    opacity: 0.98;
+    transform: perspective(1200px) rotateY(-18deg) scale(0.88) translate3d(24px, 0, 0);
+  }
+  55% {
+    opacity: 0.82;
+    transform: perspective(1200px) rotateY(-42deg) scale(0.52) translate3d(85px, 0, 0);
+  }
+  80% {
+    opacity: 0.4;
+    transform: perspective(1200px) rotateY(-62deg) scale(0.2) translate3d(160px, 0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: perspective(1200px) rotateY(-75deg) scale(0.03) translate3d(230px, 0, 0);
+  }
+}
+
+@keyframes warpRejectBin {
+  0% {
+    opacity: 1;
+    transform: perspective(1200px) rotateY(0deg) rotateX(0deg) scale(1) translate3d(0, 0, 0);
+  }
+  25% {
+    opacity: 0.95;
+    transform: perspective(1200px) rotateY(-14deg) rotateX(6deg) scale(0.88) translate3d(20px, 12px, 0);
+  }
+  60% {
+    opacity: 0.7;
+    transform: perspective(1200px) rotateY(-36deg) rotateX(16deg) scale(0.48) translate3d(70px, 40px, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: perspective(1200px) rotateY(-60deg) rotateX(28deg) scale(0.03) translate3d(140px, 80px, 0);
+  }
+}
+
+.animate-warp-send {
+  animation: warpRightSend 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+  transform-origin: 100% 50%;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+.animate-warp-reject {
+  animation: warpRejectBin 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+  transform-origin: 100% 75%;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}

@@ -70,7 +70,7 @@ export default function DashboardPage() {
     : invoices;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-5">
       {/* 1. Hero Bento Banner */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left Hero Card (8 cols) */}
@@ -271,11 +271,11 @@ export default function DashboardPage() {
       </div>
 
       {/* 3. Analytics & Streaming Feed Bento Block */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        <div className="lg:col-span-7">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        <div className="lg:col-span-7 flex flex-col">
           <RecoveryChart />
         </div>
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-5 flex flex-col">
           <LiveAgentStream />
         </div>
       </div>

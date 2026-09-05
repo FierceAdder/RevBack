@@ -77,8 +77,8 @@ export default function Navigation() {
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-base font-black tracking-tight text-slate-900 dark:text-white">RevBack</span>
-              <span className="rounded-full bg-[#0066FF]/10 px-2 py-0.5 text-[9px] font-black text-[#0066FF] dark:text-[#38BDF8] border border-[#0066FF]/30 uppercase tracking-wider">
-                Track 3
+              <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                Autonomous AI
               </span>
             </div>
           </Link>
