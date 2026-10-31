@@ -331,6 +331,21 @@ class AuditLog(Base):
     invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="audit_logs")
 
 
+class ProcessedPayment(Base):
+    """One row per Razorpay payment already applied to an invoice.
+
+    Razorpay delivers webhooks at least once, and a payment-link payment also arrives
+    as both payment.captured and payment_link.paid. The primary key makes applying the
+    same payment twice impossible, even when deliveries race.
+    """
+    __tablename__ = "processed_payments"
+
+    payment_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    invoice_id: Mapped[str] = mapped_column(String(36), ForeignKey("invoices.id"), nullable=False, index=True)
+    event: Mapped[str] = mapped_column(String(64), nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class HumanApproval(Base):
     __tablename__ = "human_approvals"
 
