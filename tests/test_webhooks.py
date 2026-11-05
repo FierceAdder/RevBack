@@ -188,3 +188,94 @@ async def test_webhook_payment_link_paid_reconciles_invoice(
     assert audit is not None
     assert audit.actor == "RAZORPAY_WEBHOOK"
     assert "₹150,000.00" in audit.action
+
+
+async def _partially_paid_invoice(db_session: AsyncSession) -> tuple[Customer, Invoice]:
+    customer = Customer(
+        name="Redelivery Test Co",
+        email="ap@redelivery.test",
+        relationship_tier=RelationshipTier.STANDARD,
+        total_invoiced_paise=100_000_00,
+        total_recovered_paise=0,
+    )
+    db_session.add(customer)
+    await db_session.flush()
+    invoice = Invoice(
+        customer_id=customer.id,
+        invoice_number="INV-RZP-DUP-1",
+        amount_paise=100_000_00,
+        amount_paid_paise=0,
+        due_date=datetime.now(timezone.utc) - timedelta(days=5),
+        status=InvoiceStatus.PENDING,
+        current_stage=RecoveryStage.PROMISE_TRACKING,
+        current_level=1,
+        active_razorpay_payment_link_id="plink_dup_1",
+    )
+    db_session.add(invoice)
+    await db_session.commit()
+    return customer, invoice
+
+
+async def _post(client: AsyncClient, payload: dict):
+    body = json.dumps(payload).encode("utf-8")
+    return await client.post(
+        "/api/v1/webhooks/razorpay",
+        content=body,
+        headers={"Content-Type": "application/json", "X-Razorpay-Signature": generate_test_signature(body)},
+    )
+
+
+@pytest.mark.asyncio
+async def test_webhook_redelivery_and_dual_events_reconcile_payment_once(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    """
+    Razorpay delivers at least once, and a payment-link payment arrives as both
+    payment_link.paid and payment.captured. A ₹40,000 payment must be counted once.
+    """
+    customer, invoice = await _partially_paid_invoice(db_session)
+    link_paid = {
+        "entity": "event",
+        "event": "payment_link.paid",
+        "contains": ["payment_link", "payment"],
+        "payload": {
+            "payment_link": {"entity": {"id": "plink_dup_1", "amount": 40_000_00, "notes": {"invoice_number": "INV-RZP-DUP-1"}}},
+            "payment": {"entity": {"id": "pay_dup_1", "amount": 40_000_00, "status": "captured"}},
+        },
+    }
+    captured = {
+        "entity": "event",
+        "event": "payment.captured",
+        "contains": ["payment"],
+        "payload": {
+            "payment": {
+                "entity": {"id": "pay_dup_1", "amount": 40_000_00, "status": "captured", "notes": {"invoice_number": "INV-RZP-DUP-1"}},
+            },
+        },
+    }
+
+    first = await _post(client, link_paid)
+    assert first.json()["status"] == "success"
+    for payload in (link_paid, captured, link_paid):
+        res = await _post(client, payload)
+        assert res.status_code == 200
+        assert res.json()["status"] == "duplicate"
+
+    await db_session.refresh(invoice)
+    await db_session.refresh(customer)
+    assert invoice.amount_paid_paise == 40_000_00
+    assert invoice.status == InvoiceStatus.PARTIALLY_PAID
+    assert customer.total_recovered_paise == 40_000_00
+    audits = await db_session.execute(
+        select(AuditLog).where(AuditLog.invoice_id == invoice.id, AuditLog.event_type == "PAYMENT_RECEIVED")
+    )
+    assert len(audits.scalars().all()) == 1
+
+    # A different payment on the same invoice is still applied
+    second_payment = json.loads(json.dumps(captured))
+    second_payment["payload"]["payment"]["entity"]["id"] = "pay_dup_2"
+    res = await _post(client, second_payment)
+    assert res.json()["status"] == "success"
+    await db_session.refresh(invoice)
+    assert invoice.amount_paid_paise == 80_000_00

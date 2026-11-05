@@ -10,11 +10,12 @@ from typing import Dict, Any
 from fastapi import APIRouter, Request, Header, HTTPException, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from src.db.session import get_db
 from src.models.db_models import (
     Invoice, InvoiceStatus, RecoveryStage, Promise, PromiseStatus,
-    PaymentPlan, PaymentPlanInstallment, AuditLog, Customer
+    PaymentPlan, PaymentPlanInstallment, AuditLog, Customer, ProcessedPayment
 )
 from src.razorpay.webhook_validator import RazorpayWebhookValidator
 
@@ -72,8 +73,18 @@ async def handle_razorpay_webhook(
         result = await db.execute(query)
         invoice = result.scalars().first()
 
+        if invoice and parsed.payment_id and await db.get(ProcessedPayment, parsed.payment_id):
+            # Redelivery, or the same payment arriving as both payment.captured and payment_link.paid
+            return {
+                "status": "duplicate",
+                "message": f"Payment {parsed.payment_id} was already reconciled",
+                "invoice_id": invoice.id,
+            }
+
         if invoice:
             now = datetime.now(timezone.utc)
+            if parsed.payment_id:
+                db.add(ProcessedPayment(payment_id=parsed.payment_id, invoice_id=invoice.id, event=parsed.event))
             invoice.amount_paid_paise += parsed.amount_paise
 
             # Check if fully recovered
@@ -140,7 +151,16 @@ async def handle_razorpay_webhook(
                 recorded_at=now,
             )
             db.add(audit_log)
-            await db.commit()
+            try:
+                await db.commit()
+            except IntegrityError:
+                # A concurrent delivery of the same payment committed first
+                await db.rollback()
+                return {
+                    "status": "duplicate",
+                    "message": f"Payment {parsed.payment_id} was already reconciled",
+                    "invoice_id": invoice.id,
+                }
 
             return {
                 "status": "success",
